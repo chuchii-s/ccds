@@ -46,8 +46,9 @@
         <li class="total"><span>ครบ @i.HorizonYears ปี Cost Saving</span><b class="@Cls(r.SavingHorizon)">@Signed(r.SavingHorizon, 2)</b></li>
     </ul>
     <div class="panel-report">
-        <YearChart Result="r" />
+        <YearLineChart Result="r" W="440" H="240" />
         <div class="tbl-scroll"><YearTable Result="r" /></div>
+        <div class="yt-note">* ช่วงผ่อน ค่างวดรวมอยู่ใน Saving ค่าใช้จ่ายแล้ว</div>
     </div>
 </div>
 

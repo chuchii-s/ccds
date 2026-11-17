@@ -42,7 +42,7 @@ else
                                 <b>แชร์ไป Line / Email …</b><small>เปิดหน้าต่างแชร์ของเครื่อง</small>
                             </button>
                             <button role="menuitem" @onmousedown:preventDefault="true" @onclick='() => MakeJpg("download")'>
-                                <b>ดาวน์โหลด JPG</b><small>รายงาน 2 หน้า เป็นไฟล์ JPG หน้าละ 1 ไฟล์</small>
+                                <b>ดาวน์โหลด JPG</b><small>รายงาน 3 หน้า เป็นไฟล์ JPG หน้าละ 1 ไฟล์</small>
                             </button>
                         </div>
                     }
@@ -115,7 +115,7 @@ else
                 "shared" => null,
                 "cancelled" => null,
                 _ when mode == "share" => "เครื่องนี้แชร์ไฟล์โดยตรงไม่ได้ จึงดาวน์โหลด JPG ให้แทน — แนบไฟล์ใน Line / อีเมลได้เลย",
-                _ => "ดาวน์โหลด JPG แล้ว (รายงาน 2 หน้า)",
+                _ => "ดาวน์โหลด JPG แล้ว (รายงาน 3 หน้า)",
             };
         }
         catch (Exception ex)

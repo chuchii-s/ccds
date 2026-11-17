@@ -59,6 +59,68 @@ window.ccds = {
 
     fitReportWhenReady: async root => { await document.fonts.ready; ccds.fitReport(root); },
 
+    /**
+     * สร้างไฟล์ PDF ขนาด A4 จากหน้ารายงาน (.page) — หน้าละ 1 หน้า PDF (รายงาน 3 หน้า = PDF 3 หน้าพอดีทุกเครื่อง)
+     * ไม่พึ่งหน้าต่างพิมพ์ของเบราว์เซอร์ (ซึ่งบนมือถือเลือกขนาดกระดาษ/ขอบเองจนหน้าเกิน)
+     *  mode "share" → แชร์ไฟล์ (ถ้าเครื่องรองรับ) ไม่งั้นดาวน์โหลด, "download" → ดาวน์โหลด
+     * คืนค่า "shared" | "downloaded" | "cancelled"
+     */
+    reportPdf: async (containerId, fileName, title, mode) => {
+        const root = document.getElementById(containerId);
+        const pages = [...root.querySelectorAll(".page")];
+        await document.fonts.ready;
+        ccds.fitReport(root);
+        const imgs = [];
+        for (const pg of pages) {
+            const url = await htmlToImage.toJpeg(pg, { quality: 0.93, pixelRatio: 2.5, backgroundColor: "#ffffff" });
+            const bytes = new Uint8Array(await (await fetch(url)).arrayBuffer());
+            const size = await new Promise((ok, fail) => { const im = new Image(); im.onload = () => ok([im.naturalWidth, im.naturalHeight]); im.onerror = fail; im.src = url; });
+            imgs.push({ bytes, w: size[0], h: size[1] });
+        }
+        const file = new File([ccds.buildPdf(imgs, title)], fileName, { type: "application/pdf" });
+        if (mode === "share" && navigator.canShare && navigator.canShare({ files: [file] })) {
+            try { await navigator.share({ files: [file], title, text: title }); return "shared"; }
+            catch (e) { if (e && e.name === "AbortError") return "cancelled"; }
+        }
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(file); a.download = file.name;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+        return "downloaded";
+    },
+
+    /** เขียนไฟล์ PDF แบบง่าย: แต่ละหน้า A4 (595.28 × 841.89 pt) มีภาพ JPEG เต็มหน้า 1 ภาพ */
+    buildPdf: (imgs, title) => {
+        const enc = new TextEncoder(), parts = [], offs = [];
+        let len = 0;
+        const put = x => { const b = typeof x === "string" ? enc.encode(x) : x; parts.push(b); len += b.length; };
+        const W = 595.28, H = 841.89, n = imgs.length;
+        const obj = (id, body, stream) => {
+            offs[id] = len;
+            put(`${id} 0 obj\n`); put(body);
+            if (stream) { put("\nstream\n"); put(stream); put("\nendstream"); }
+            put("\nendobj\n");
+        };
+        put("%PDF-1.4\n"); put(new Uint8Array([0x25, 0xE2, 0xE3, 0xCF, 0xD3, 0x0A]));
+        // หัวเรื่องเอกสาร (UTF-16BE hex รองรับภาษาไทย)
+        const hex = [...(title || "CCDS")].map(c => c.charCodeAt(0).toString(16).padStart(4, "0")).join("");
+        obj(1, "<< /Type /Catalog /Pages 2 0 R >>");
+        obj(2, `<< /Type /Pages /Kids [${imgs.map((_, k) => `${4 + 3 * k} 0 R`).join(" ")}] /Count ${n} >>`);
+        obj(3, `<< /Title <FEFF${hex}> /Producer (CCDS Feasibility Simulator) >>`);
+        imgs.forEach((im, k) => {
+            const pid = 4 + 3 * k, cid = pid + 1, iid = pid + 2;
+            obj(pid, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /XObject << /Im0 ${iid} 0 R >> >> /Contents ${cid} 0 R >>`);
+            const content = enc.encode(`q ${W} 0 0 ${H} 0 0 cm /Im0 Do Q`);
+            obj(cid, `<< /Length ${content.length} >>`, content);
+            obj(iid, `<< /Type /XObject /Subtype /Image /Width ${im.w} /Height ${im.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${im.bytes.length} >>`, im.bytes);
+        });
+        const size = 4 + 3 * n, xref = len;
+        put(`xref\n0 ${size}\n0000000000 65535 f \n`);
+        for (let id = 1; id < size; id++) put(`${String(offs[id]).padStart(10, "0")} 00000 n \n`);
+        put(`trailer\n<< /Size ${size} /Root 1 0 R /Info 3 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+        return new Blob(parts, { type: "application/pdf" });
+    },
+
     reportJpg: async (containerId, baseName, title, mode) => {
         const pages = [...document.querySelectorAll(`#${containerId} .page`)];
         await document.fonts.ready;

@@ -1,0 +1,114 @@
+@* กราฟเส้น Cost Saving สะสมรายปี (SVG) — ใช้ในรายงาน (หน้า 1–2) และแผงผลลัพธ์หน้าแก้ไข
+   เส้น/พื้นสีเขียว = ยอดสะสมเป็นบวก, สีแดง = ติดลบ • เส้นประ = ผ่อนครบ • จุดใหญ่ = ปีที่เริ่มคืนทุน *@
+@{
+    var r = Result;
+    int h = r.Years.Count;
+    var vals = new List<decimal> { 0m };
+    vals.AddRange(r.Years.Select(y => y.Cumulative));
+    decimal lo = Math.Min(0, vals.Min()), hi = Math.Max(0, vals.Max());
+    if (hi == lo) hi = lo + 1;
+    decimal step = Nice((hi - lo) / 4);
+    lo = Math.Floor(lo / step) * step;
+    hi = Math.Ceiling(hi / step) * step;
+    if (hi == lo) hi = lo + step;
+    double X(int i) => L + (W - L - R) * i / (double)Math.Max(1, h);
+    double Y(decimal v) => T + (H - T - B) * (double)((hi - v) / (hi - lo));
+    double y0 = Y(0);
+    var pts = string.Join(" ", vals.Select((v, i) => $"{F(X(i))},{F(Y(v))}"));
+    var area = $"{F(X(0))},{F(y0)} {pts} {F(X(h))},{F(y0)}";
+    int n = Math.Clamp(r.Input.InstallmentYears, 1, 30);
+    int? be = r.BreakEvenYear;
+    double gap = (W - L - R) / Math.Max(1, h);          // ระยะห่างระหว่างปี (หน่วย viewBox)
+    int k = gap >= 46 ? 1 : gap >= 23 ? 2 : 5;           // แสดงค่าทุก k ปี ไม่ให้ตัวเลขซ้อนกัน
+    bool allYears = gap >= 18;                           // ป้ายปีแสดงครบทุกปีถ้ามีที่พอ
+    bool shortYr = gap < 40;                             // ที่แคบ: "3" แทน "ปี 3"
+    var id = "lc" + GetHashCode().ToString("x");
+}
+<div class="ylc">
+    <svg viewBox="0 0 @W @H" role="img" aria-label="กราฟเส้น Cost Saving สะสมรายปี">
+        <defs>
+            <linearGradient id="@(id)g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#22a35a" stop-opacity=".28" /><stop offset="1" stop-color="#22a35a" stop-opacity=".03" /></linearGradient>
+            <linearGradient id="@(id)r" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#c62828" stop-opacity=".26" /><stop offset="1" stop-color="#c62828" stop-opacity=".03" /></linearGradient>
+            <clipPath id="@(id)a"><rect x="0" y="0" width="@W" height="@F(y0)" /></clipPath>
+            <clipPath id="@(id)b"><rect x="0" y="@F(y0)" width="@W" height="@F(H - y0)" /></clipPath>
+        </defs>
+
+        @* เส้นตาราง + ค่าแกน Y *@
+        @for (decimal v = lo; v <= hi + step / 2; v += step)
+        {
+            <line x1="@L" x2="@(W - R)" y1="@F(Y(v))" y2="@F(Y(v))" class="@(v == 0 ? "zero" : "grid")" />
+            @Txt(F(L - 6), F(Y(v) + 3.5), "ax", "end", v == 0 ? "0" : Short(v))
+        }
+
+        @* ผ่อนครบ *@
+        @if (n < h)
+        {
+            <line x1="@F(X(n))" x2="@F(X(n))" y1="@T" y2="@(H - B)" class="mark" />
+            @Txt(F(X(n) + 4), F(T + 9), "mk", "start", "ผ่อนครบ")
+        }
+
+        @* พื้นและเส้น (เขียวเหนือศูนย์ / แดงใต้ศูนย์) *@
+        <polygon points="@area" fill="url(#@(id)g)" clip-path="url(#@(id)a)" />
+        <polygon points="@area" fill="url(#@(id)r)" clip-path="url(#@(id)b)" />
+        <polyline points="@pts" class="ln pos" clip-path="url(#@(id)a)" />
+        <polyline points="@pts" class="ln neg" clip-path="url(#@(id)b)" />
+
+        @* จุด + ค่า + ปี *@
+        @for (int i = 1; i <= h; i++)
+        {
+            var v = vals[i];
+            bool isBe = be == i;
+            bool label = i % k == 0 || i == h || i == 1 || isBe;
+            <circle cx="@F(X(i))" cy="@F(Y(v))" r="@(isBe ? 5.2 : 3.2)" class="pt @(v >= 0 ? "pos" : "neg") @(isBe ? "be" : "")" />
+            @if (label)
+            {
+                @if (isBe && i > 1)
+                {
+                    // ปีคืนทุน: ป้าย "คืนทุนปีที่" อยู่ซ้าย → ตัวเลขวางขวาล่างของจุด (ใต้เส้นที่กำลังขึ้น)
+                    @Txt(F(X(i) + 7), F(Y(v) + 15), v >= 0 ? "val pos" : "val neg", "start", Short(v))
+                }
+                else
+                {
+                    @Txt(F(X(i)), F(v >= 0 ? Y(v) - 8 : Y(v) + 15), v >= 0 ? "val pos" : "val neg", "middle", Short(v))
+                }
+            }
+            @if (label || allYears)
+            {
+                @Txt(F(X(i)), F(H - B + 16), "yr", "middle", shortYr ? i.ToString() : $"ปี {i}")
+            }
+        }
+        @if (be is int b && b <= h)
+        {
+            // วางป้ายไว้ซ้ายของจุด (ด้านที่เส้นลงไปทางศูนย์ จึงไม่ทับตัวเลขปีถัดไป) — ปีแรกวางขวาแทน
+            bool left = b > 1;
+            @Txt(F(left ? X(b) - 9 : X(b) + 9), F(Math.Max(T + 9, Y(vals[b]) + 4)), "beL", left ? "end" : "start", $"คืนทุนปีที่ {b}")
+        }
+    </svg>
+    <div class="cap">เส้น = ยอด Cost Saving สะสม • เส้นประ = ผ่อนครบ • จุดใหญ่ = ปีที่เริ่มคืนทุน@(shortYr ? " • แกนล่าง = ปีที่" : "") • M = ล้านบาท, K = พันบาท</div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public CcdsResult Result { get; set; } = default!;
+
+    /// <summary>ขนาด viewBox — พื้นที่แคบ (แผงผลลัพธ์/ครึ่งหน้า A4) ใช้ความกว้างน้อยลงให้ตัวอักษรไม่เล็กเกินไป</summary>
+    [Parameter] public double W { get; set; } = 720;
+    [Parameter] public double H { get; set; } = 220;
+
+    private const double L = 52, R = 18, T = 16, B = 26;
+
+    /// <summary>ข้อความใน SVG (Razor ใช้แท็ก text เองไม่ได้ในบล็อกโค้ด)</summary>
+    private static MarkupString Txt(string x, string y, string cls, string anchor, string text) =>
+        new($"<text x=\"{x}\" y=\"{y}\" class=\"{cls}\" text-anchor=\"{anchor}\">{System.Net.WebUtility.HtmlEncode(text)}</text>");
+
+    private static string F(double v) => v.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>ระยะห่างเส้นตารางที่อ่านง่าย (1, 2, 2.5, 5 × 10ⁿ)</summary>
+    private static decimal Nice(decimal raw)
+    {
+        if (raw <= 0) return 1;
+        var p = (decimal)Math.Pow(10, Math.Floor(Math.Log10((double)raw)));
+        foreach (var m in new[] { 1m, 2m, 2.5m, 5m, 10m })
+            if (raw <= m * p) return m * p;
+        return 10 * p;
+    }
+}

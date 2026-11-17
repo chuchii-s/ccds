@@ -16,10 +16,17 @@ else
         <div class="crumb"><a href="">สถานที่</a> / <a href="project/@project.Id">@project.DisplayName</a> / <b>รายงาน</b></div>
         <div class="head-actions">
             <a class="btn" href="project/@project.Id">← แก้ไขข้อมูล</a>
-            <button class="btn primary" @onclick='() => JS.InvokeVoidAsync("ccds.print")'>พิมพ์ / บันทึก PDF</button>
+            <button class="btn" @onclick='() => JS.InvokeVoidAsync("ccds.print")'>พิมพ์</button>
+            <button class="btn primary" disabled="@pdfBusy" @onclick="DownloadPdf">@(pdfBusy ? "กำลังสร้าง PDF…" : "ดาวน์โหลด PDF")</button>
         </div>
     </div>
-    <div class="print-tip no-print">ในหน้าต่างพิมพ์ เลือก <b>Save as PDF</b> (บันทึกเป็น PDF) ขนาด <b>A4</b></div>
+    <div class="print-tip no-print"><b>ดาวน์โหลด PDF</b> ได้ไฟล์ A4 (คอมพิวเตอร์และมือถือ) • <b>พิมพ์</b> ใช้ส่งเครื่องพิมพ์โดยตรง</div>
+    @if (!string.IsNullOrEmpty(pdfMsg)) { <div class="msg no-print report-msg">@pdfMsg</div> }
+    @if (pdfRender)
+    {
+        @* สำเนารายงานที่ซ่อนไว้ (ขนาด A4 จริง ไม่ย่อตามจอ) ใช้แปลงเป็น PDF *@
+        <div id="pdf-src" class="jpg-src" aria-hidden="true"><ReportPages Result="r" /></div>
+    }
     <div class="report-wrap">
         <ReportPages Result="r" />
     </div>
@@ -34,6 +41,35 @@ else
     {
         project = await Store.GetAsync(Id);
         loading = false;
+    }
+
+    // ---------- ดาวน์โหลด PDF (A4 3 หน้าพอดี) ----------
+    private bool pdfBusy, pdfRender;
+    private string? pdfMsg;
+
+    private async Task DownloadPdf()
+    {
+        pdfBusy = pdfRender = true; pdfMsg = null;
+        StateHasChanged();
+        try
+        {
+            await Task.Delay(150);   // รอให้สำเนารายงานที่ซ่อนไว้วาดเสร็จ
+            var result = await JS.InvokeAsync<string>("ccds.reportPdf", "pdf-src", FileBase() + ".pdf", $"CCDS — {project!.DisplayName}", "download");
+            pdfMsg = result == "downloaded" ? "ดาวน์โหลด PDF แล้ว (A4 3 หน้า)" : null;
+        }
+        catch (Exception ex) { pdfMsg = "สร้าง PDF ไม่สำเร็จ: " + ex.Message; }
+        finally { pdfBusy = pdfRender = false; }
+    }
+
+    /// <summary>ชื่อไฟล์ภาษาอังกฤษ/ตัวเลขเท่านั้น (บางเบราว์เซอร์ไม่รองรับชื่อไทยตอนดาวน์โหลด)</summary>
+    private string FileBase()
+    {
+        var i = project!.Input;
+        var parts = new[] { i.ModelName, i.Month }
+            .Select(x => new string((x ?? "").Where(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_').ToArray()))
+            .Where(x => x.Length > 0).ToList();
+        if (parts.Count == 0) parts.Add(project.Id);
+        return "CCDS_" + string.Join("_", parts);
     }
 
     // หลังวาดรายงานเสร็จ: ย่อเนื้อหาหน้าที่ยาวเกินให้พอดี A4 (รอฟอนต์โหลดก่อนวัดขนาด)

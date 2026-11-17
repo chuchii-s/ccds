@@ -85,6 +85,9 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; }
+/* ปิดการขยายตัวอักษรอัตโนมัติของ Safari/Chrome บนมือถือ (text autosizing)
+   — ไม่งั้นย่อหน้าในรายงาน A4 ที่ย่อให้พอดีจอจะถูกขยายตัวหนังสือจนล้นและซ้อนกัน (ยังซูมด้วยนิ้วได้ตามปกติ) */
+html { -webkit-text-size-adjust: 100%; -moz-text-size-adjust: 100%; text-size-adjust: 100%; }
 body { font-family: var(--font); font-size: 15px; line-height: 1.5; color: var(--text); background: var(--bg); -webkit-font-smoothing: antialiased; }
 a { color: var(--primary); }
 button { font-family: inherit; }
@@ -479,6 +482,7 @@ input.derived { color: var(--text-2); }
 .act.icon { display: inline-grid; place-items: center; width: 32px; height: 32px; padding: 0; vertical-align: middle; }
 .act.icon .ico { width: 18px; height: 18px; }
 .act.del:hover { background: var(--neg-soft); }
+.report-msg { max-width: 210mm; margin: 10px auto 0; }
 .print-tip { max-width: 210mm; margin: 16px auto 0; padding: 10px 14px; background: var(--primary-soft); color: var(--text-2); border-radius: var(--radius-sm); font-size: 14px; }
 
 /* ---------- Dashboard ---------- */
@@ -617,7 +621,6 @@ th.sortable:hover { color: var(--text); }
     .form-actions .menu { left: 10px; right: 10px; min-width: 0; }
     .form-actions .btn { padding: 8px 10px; font-size: 13px; gap: 4px; }
     .form-actions .btn .ico { width: 16px; height: 16px; }
-    .panel-report .ychart .val { font-size: 5.5pt; overflow-wrap: anywhere; }
     .pair { grid-template-columns: minmax(0, 1fr); }
     .pair .pl { grid-row: auto; }
     .pb span { flex: none; }
@@ -785,6 +788,90 @@ th.sortable:hover { color: var(--text); }
 .cols { display: grid; gap: 5mm; }
 .cols > * { min-width: 0; }
 .yt-wrap { display: flex; flex-direction: column; gap: 2.5mm; }
+/* ---------- หน้า 1 รายงาน: สรุปสำหรับผู้บริหาร ---------- */
+.ex-hero { border-radius: 3mm; padding: 4.5mm 5.5mm; border: .6pt solid; }
+.ex-hero.good { background: linear-gradient(120deg, #e3f5ea, #f4fbf7 60%, #eef6fb); border-color: #bfe3cd; }
+.ex-hero.bad { background: linear-gradient(120deg, #fbe7eb, #fdf5f6 60%, #f4f6fa); border-color: #efc9d1; }
+.ex-eyebrow { font-size: 8pt; font-weight: 700; letter-spacing: .06em; color: var(--teal); text-transform: uppercase; }
+.ex-hero.bad .ex-eyebrow { color: var(--burg); }
+.ex-head { font-size: 17pt; font-weight: 800; line-height: 1.25; color: var(--navy); margin-top: 1.2mm; letter-spacing: -.005em; }
+.ex-hero.good .ex-head b { color: var(--green); }
+.ex-hero.bad .ex-head b { color: var(--burg); }
+.ex-sub { font-size: 10pt; color: var(--text); margin-top: 1.4mm; line-height: 1.45; }
+.ex-sub b { color: var(--navy); }
+
+.ex-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm; }
+.ex-stat { position: relative; padding: 3.2mm 3.4mm 3mm; border-radius: 2.6mm; border: .6pt solid #dde4ee; background: #fff; overflow: hidden;
+    box-shadow: 0 .6mm 2mm rgba(15, 27, 45, .06); --k: var(--navy); }
+.ex-stat::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 1.1mm; background: var(--k); }
+.ex-stat.pos { --k: var(--green); } .ex-stat.neg { --k: var(--burg); } .ex-stat.navy { --k: var(--blue); }
+.ex-stat .l { font-size: 7.8pt; color: var(--muted); font-weight: 600; }
+.ex-stat .v { font-size: 15pt; font-weight: 800; color: var(--k); margin-top: .8mm; line-height: 1.15; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.ex-stat .n { font-size: 7.3pt; color: var(--muted); margin-top: .5mm; }
+
+.ex-bars { display: grid; gap: 1.2mm; margin-bottom: 4mm; }
+.ex-bar-l { font-size: 8.8pt; color: var(--text); display: flex; flex-wrap: wrap; gap: 0 1.5mm; align-items: baseline; }
+.ex-bar-l b { color: var(--navy); font-size: 10pt; }
+.ex-bar-l small { font-size: 7pt; color: var(--muted); }
+.ex-track { height: 3.4mm; border-radius: 999px; background: var(--track); overflow: hidden; margin-bottom: 1.4mm; }
+.ex-fill { height: 100%; border-radius: 999px; }
+.ex-fill.gl { background: linear-gradient(90deg, #9cbfe8, #3b6ea8); }
+.ex-fill.cc { background: linear-gradient(90deg, #9fe0d4, #0f766e); }
+.ex-diff { justify-self: start; font-weight: 800; font-size: 10pt; padding: 1.2mm 3mm; border-radius: 999px; }
+.ex-diff.pos { color: var(--green); background: var(--green-l); }
+.ex-diff.neg { color: var(--burg); background: var(--red-l); }
+
+/* การ์ดช่วงเวลาแบบเส้นกรอบ (ไม่เติมสีพื้น) — สีน้ำเงิน = ช่วงผ่อน, สีเขียว = ผ่อนครบ */
+.ex-tl-bar { display: flex; gap: 2mm; }
+.ex-tl-bar .seg { position: relative; padding: 2mm 2.8mm 2.2mm; display: flex; flex-direction: column; min-width: 0;
+    background: #fff; border: 1.1pt solid var(--c); border-radius: 2.2mm; }
+.ex-tl-bar .seg span { font-size: 7.3pt; color: var(--muted); font-weight: 600; }
+.ex-tl-bar .seg b { font-size: 8.6pt; color: var(--c); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ex-tl-bar .seg.lease { --c: #2a6fa8; }
+.ex-tl-bar .seg.own { --c: #15803d; }
+.ex-tl-rows { margin-top: 1.6mm; }
+.ex-tl-rows div { display: flex; justify-content: space-between; gap: 2mm; padding: 1.1mm .4mm; border-bottom: .5pt solid #edf1f6; font-size: 8.6pt; }
+.ex-tl-rows b { font-variant-numeric: tabular-nums; }
+
+.ex-list { list-style: none; margin: 0 0 4mm; padding: 0; display: grid; gap: 1.6mm; }
+.ex-list li { position: relative; padding-left: 5.4mm; font-size: 8.6pt; line-height: 1.45; text-align: justify; text-justify: inter-character; }
+.ex-list li::before { content: "✓"; position: absolute; left: 0; top: 0; width: 3.8mm; height: 3.8mm; border-radius: 999px;
+    background: var(--green-l); color: var(--green); font-weight: 800; font-size: 7pt; display: grid; place-items: center; }
+.ex-list b { color: var(--navy); }
+.page .nw { white-space: nowrap; }   /* คำที่ห้ามตัดกลางคำ */
+.rt.ex-inv td { font-size: 8.4pt; }
+
+.ex-reco { border-radius: 2.6mm; padding: 3mm 4mm; font-size: 9pt; line-height: 1.5; }
+.ex-reco.good { background: linear-gradient(90deg, #e3f4ea, #f4fbf7); box-shadow: inset 1mm 0 0 var(--green); }
+.ex-reco.bad { background: linear-gradient(90deg, #fbe6ea, #fdf5f6); box-shadow: inset 1mm 0 0 var(--burg); }
+.ex-reco .h { font-weight: 800; font-size: 10.5pt; margin-bottom: .6mm; }
+.ex-reco.good .h, .ex-reco.good b { color: var(--green); }
+.ex-reco.bad .h, .ex-reco.bad b { color: var(--burg); }
+.ex-foot { font-size: 7.3pt; color: var(--muted); line-height: 1.45; }
+
+/* กราฟเส้น Cost Saving สะสม (หน้า Executive Summary) */
+.ylc { border: .6pt solid #e2e8f0; border-radius: 2.4mm; padding: 2.2mm 2.4mm 1.6mm; background: linear-gradient(180deg, #fbfcfe, #fff 60%); }
+.ylc svg { display: block; width: 100%; height: auto; overflow: visible; }
+.ylc .grid { stroke: #e6ebf2; stroke-width: 1; }
+.ylc .zero { stroke: #94a3b8; stroke-width: 1.2; }
+.ylc .ax { font-size: 9.5px; fill: #7a8699; font-family: inherit; }
+.ylc .yr { font-size: 10px; fill: #66748a; font-family: inherit; }
+.ylc .val { font-size: 9.5px; font-weight: 700; font-family: inherit; }
+.ylc .val.pos { fill: #15803d; } .ylc .val.neg { fill: #800020; }
+.ylc .ln { fill: none; stroke-width: 2.6; stroke-linejoin: round; stroke-linecap: round; }
+.ylc .ln.pos { stroke: #16a34a; } .ylc .ln.neg { stroke: #c62828; }
+.ylc .pt { stroke: #fff; stroke-width: 1.6; }
+.ylc .pt.pos { fill: #16a34a; } .ylc .pt.neg { fill: #c62828; }
+.ylc .pt.be { fill: #15803d; stroke: #bbf7d0; stroke-width: 3; }
+.ylc .mark { stroke: #94a3b8; stroke-width: 1.2; stroke-dasharray: 4 4; }
+.ylc .mk { font-size: 9.5px; fill: #64748b; font-weight: 600; font-family: inherit; }
+.ylc .beL { font-size: 10.5px; fill: #15803d; font-weight: 800; font-family: inherit; }
+.ylc .val, .ylc .beL { paint-order: stroke; stroke: #fff; stroke-width: 3px; stroke-linejoin: round; }
+.ylc .cap { font-size: 7pt; color: var(--muted); margin-top: 1mm; }
+
+/* หมายเหตุใต้ตารางรายปี */
+.yt-note { font-size: 12px; color: var(--muted); margin-top: 6px; }
+.page .yt-note { font-size: 7.5pt; margin-top: -1mm; }
 
 .rt { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 8.5pt; font-variant-numeric: tabular-nums; }
 .rt th { background: var(--th-bg); color: var(--th-fg); font-weight: 700; font-size: 7.8pt; padding: 1.4mm 1.8mm; text-align: right; white-space: nowrap; letter-spacing: .01em; }
@@ -817,7 +904,7 @@ th.sortable:hover { color: var(--text); }
 
 .stack-l { font-weight: 700; margin-top: 2mm; color: var(--navy); }
 .stack-l span { font-weight: 600; color: var(--muted); margin-left: 1mm; }
-.stack { display: flex; gap: .5mm; height: 6mm; background: var(--track); margin-top: 1.2mm; border-radius: 1.8mm; overflow: hidden; }
+.stack { display: flex; gap: .5mm; height: 3.4mm; background: var(--track); margin-top: 1.2mm; border-radius: 999px; overflow: hidden; }
 .legend { font-size: 7.5pt; color: var(--muted); margin-top: 2.4mm; display: flex; flex-wrap: wrap; gap: 1.2mm 3.2mm; }
 .legend i { display: inline-block; width: 7pt; height: 7pt; margin-right: 1.2mm; vertical-align: -1pt; border-radius: 2pt; }
 
@@ -829,28 +916,12 @@ th.sortable:hover { color: var(--text); }
 .facts-r .tot.neg { background: linear-gradient(90deg, #fbe6ea, #fdf4f6); box-shadow: inset .9mm 0 0 var(--burg); }
 .facts-r .tot b { font-size: 12pt; font-weight: 800; }
 
-.ychart { border: .6pt solid #e2e8f0; border-radius: 2.4mm; padding: 2.8mm 2.4mm 2.2mm; background: linear-gradient(180deg, #fbfcfe, #fff 60%); }
-.ychart .cols-y { display: flex; }
-.ychart .yc { flex: 1; min-width: 0; padding: 0 2px; display: flex; flex-direction: column; text-align: center; }
-.ychart .zone { display: flex; }
-.ychart .zone.p { align-items: flex-end; }
-.ychart .zone.n { align-items: flex-start; }
-.ychart .zone div { width: 100%; border-radius: 1px; }
-.ychart .zone.p div { border-radius: 1.2mm 1.2mm 0 0; }
-.ychart .zone.n div { border-radius: 0 0 1.2mm 1.2mm; }
-.ychart .zero { height: 1px; background: var(--muted); opacity: .6; }
-.ychart .lab { font-size: 7pt; color: var(--muted); margin-top: .8mm; white-space: nowrap; }
-.ychart .val { font-size: 6.6pt; font-weight: 700; white-space: nowrap; }
-.ychart .cap { font-size: 7pt; color: var(--muted); margin-top: 1.4mm; }
 .note-box { background: var(--navy-l); padding: 2.4mm 3mm; border-radius: 2mm; }
 .foot-note { font-size: 8pt; color: var(--muted); margin-top: 1.2mm; }
 .foot-note b { color: var(--navy); }
 
 /* กราฟ/ตารางรายปีในแผงขวา (ใช้คลาสเดียวกับรายงาน แต่สีตามธีมหน้าจอ) */
-.panel-report .ychart { background: var(--surface); border-color: var(--border); }
-.glass .panel-report .ychart { background: color-mix(in srgb, var(--surface) 45%, transparent); border-color: var(--glass-input-edge); }
-.panel-report .ychart .lab, .panel-report .ychart .cap { color: var(--muted); }
-.panel-report .rt td { border-color: var(--line); }
+.panel-report .glass .panel-report .panel-report .panel-report .rt td { border-color: var(--line); }
 .panel-report .rt td.neg, .panel-report .neg { color: var(--neg-num); }
 .panel-report .pos { color: var(--pos); }
 .panel-report .rt.yt td, .panel-report .rt.yt th { border-left-color: var(--line); }
