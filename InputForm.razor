@@ -1,0 +1,192 @@
+@* ฟอร์มกรอกข้อมูล — ใช้ทั้งหน้าแก้ไขโครงการ และหน้าตั้งค่า (ซ่อนส่วนข้อมูลเฉพาะโครงการ) *@
+@{
+    int sec = 0;
+}
+
+@if (ShowProjectSections)
+{
+    <div class="card">
+        <h2><span class="num">@(++sec)</span>ข้อมูลทั่วไป</h2>
+        <div class="grid g3">
+            <label class="span2">ชื่อหน่วยไตเทียม / ลูกค้า<input @bind="Input.SiteName" @bind:after="Changed" /></label>
+            <label>Model<input @bind="Input.ModelName" @bind:after="Changed" /></label>
+            <label>ข้อมูลเดือน<input @bind="Input.Month" @bind:after="Changed" /></label>
+            <label>จำนวนเครื่อง<input type="number" @bind="Input.Machines" @bind:after="Changed" /></label>
+            <label>Treatment / เดือน<input type="number" step="any" @bind="Input.TreatmentsPerMonth" @bind:after="Changed" /></label>
+        </div>
+    </div>
+}
+
+<div class="card">
+    <h2><span class="num">@(++sec)</span>@(ShowProjectSections ? "ปริมาณน้ำยาที่ใช้ต่อเดือน (แกลลอน)" : "สูตรน้ำยา A และการใช้ผงผสม")</h2>
+    <table class="tbl">
+        <thead>
+            <tr>
+                <th>สูตร</th>
+                @if (ShowProjectSections) { <th>แกลลอน / เดือน</th><th class="r">Treatment</th> }
+                <th>เมื่อใช้ CCDS</th><th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @for (int k = 0; k < Input.ARecipes.Count; k++)
+            {
+                var rec = Input.ARecipes[k];
+                var row = Result?.ARows.ElementAtOrDefault(k);
+                <tr>
+                    <td><input class="name" @bind="rec.Name" @bind:after="Changed" /></td>
+                    @if (ShowProjectSections)
+                    {
+                        <td><input type="number" step="any" @bind="rec.Gallons" @bind:after="Changed" /></td>
+                        <td class="r muted">@N0(row?.Treatments ?? 0)</td>
+                    }
+                    <td>
+                        <div class="seg">
+                            <button class="@(rec.UsePowder ? "on powder" : "")" @onclick="() => SetPowder(rec, true)">ผงผสม</button>
+                            <button class="@(!rec.UsePowder ? "on gl" : "")" @onclick="() => SetPowder(rec, false)">แกลลอน</button>
+                        </div>
+                    </td>
+                    <td><button class="x" title="ลบ" @onclick="() => Remove(rec)">×</button></td>
+                </tr>
+            }
+            @if (ShowProjectSections)
+            {
+                <tr>
+                    <td><b>B</b></td>
+                    <td><input type="number" step="any" @bind="Input.GallonsB" @bind:after="Changed" /></td>
+                    <td class="r muted">@N0(Result?.Treatments ?? 0)</td>
+                    <td><span class="pill powder">ผงผสม</span></td>
+                    <td></td>
+                </tr>
+            }
+        </tbody>
+        <tfoot>
+            <tr>
+                <td>@(ShowProjectSections ? "รวม" : "")</td>
+                @if (ShowProjectSections) { <td class="r">@N0(Result?.TotalGallons ?? 0)</td> }
+                <td colspan="3"><button class="link" @onclick="Add">+ เพิ่มสูตร A</button></td>
+            </tr>
+        </tfoot>
+    </table>
+</div>
+
+<div class="card">
+    <h2><span class="num">@(++sec)</span>ราคาน้ำยาแบบแกลลอน (ปัจจุบัน)</h2>
+    <div class="grid g3">
+        <label>ราคา A / แกลลอน<input type="number" step="any" @bind="Input.PricePerGallonA" @bind:after="Changed" /></label>
+        <label>ราคา B / แกลลอน<input type="number" step="any" @bind="Input.PricePerGallonB" @bind:after="Changed" /></label>
+        <label>ขายแกลลอนเปล่าคืน (บาท/GL)<input type="number" step="any" @bind="Input.GallonSalePrice" @bind:after="Changed" /></label>
+        <label>ลิตร / แกลลอน A<input type="number" step="any" @bind="Input.LiterPerGallonA" @bind:after="Changed" /></label>
+        <label>ลิตร / แกลลอน B<input type="number" step="any" @bind="Input.LiterPerGallonB" @bind:after="Changed" /></label>
+        <label>ราคา A / GL เมื่อใช้ CCDS<input type="number" step="any" @bind="Input.CcdsPricePerGallonA" @bind:after="Changed" /></label>
+    </div>
+</div>
+
+<div class="card">
+    <h2><span class="num">@(++sec)</span>ค่าเช่าซื้อเครื่อง CCDS (Leasing)</h2>
+    <div class="grid g3">
+        <label>ราคาเครื่อง (บาท)<input type="number" step="any" @bind="Input.LeasingPrice" @bind:after="Changed" /></label>
+        <label>ดอกเบี้ย Flat (% ต่อปี)<input type="number" step="any" @bind="Input.InterestRatePercent" @bind:after="Changed" /></label>
+        <label>จำนวนปีผ่อน<input type="number" min="0" @bind="Input.InstallmentYears" @bind:after="Changed" /></label>
+    </div>
+    @if (Result is not null)
+    {
+        <div class="calc">ดอกเบี้ยรวม <b>@N0(Result.LeasingTotalInterest)</b> • ยอดรวม <b>@N0(Result.LeasingTotal)</b> • ค่างวด <b>@N2(Result.LeasingPerMonth)</b> บาท/เดือน</div>
+    }
+</div>
+
+<div class="card">
+    <h2><span class="num">@(++sec)</span>ผงผสม (Powder)</h2>
+    <table class="tbl">
+        <thead>
+            <tr><th></th><th>ราคา / กล่อง</th><th>ผสมได้ (ครั้ง/กล่อง)</th><th>ลิตร / ครั้ง</th>
+                @if (Result is not null) { <th class="r">Tx / กล่อง</th><th class="r">บาท / Tx</th> }
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var (name, p, res) in new[] { ("A", Input.PowderA, Result?.PowderA), ("B", Input.PowderB, Result?.PowderB) })
+            {
+                <tr>
+                    <td><b>@name</b></td>
+                    <td><input type="number" step="any" @bind="p.CostPerBox" @bind:after="Changed" /></td>
+                    <td><input type="number" step="any" @bind="p.MixPerBox" @bind:after="Changed" /></td>
+                    <td><input type="number" step="any" @bind="p.MixLiter" @bind:after="Changed" /></td>
+                    @if (res is not null)
+                    {
+                        <td class="r muted">@N2(res.TreatmentsPerBox)</td>
+                        <td class="r"><b>@N2(res.CostPerTreat)</b></td>
+                    }
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<div class="card">
+    <h2><span class="num">@(++sec)</span>Utility (น้ำ / ไฟ)</h2>
+    <div class="grid g3">
+        <label>ค่าน้ำ (บาท/m³)<input type="number" step="any" @bind="Input.WaterRate" @bind:after="Changed" /></label>
+        <label>น้ำ RO (m³ ต่อน้ำยา 1,000 L)<input type="number" step="any" @bind="Input.WaterM3Per1000Liter" @bind:after="Changed" /></label>
+        <label>ค่าไฟ (บาท/kWh)<input type="number" step="any" @bind="Input.ElectricRate" @bind:after="Changed" /></label>
+        <label>วันทำงาน / เดือน<input type="number" min="1" @bind="Input.DaysPerMonth" @bind:after="Changed" /></label>
+        <label>ถังผสม A (ลิตร/ครั้ง)<input type="number" step="any" @bind="Input.MixTankLiterA" @bind:after="Changed" /></label>
+        <label>ถังผสม B (ลิตร/ครั้ง)<input type="number" step="any" @bind="Input.MixTankLiterB" @bind:after="Changed" /></label>
+    </div>
+    <table class="tbl mt">
+        <thead>
+            <tr><th>อุปกรณ์</th><th>kW</th><th>ชม./รอบ</th><th>จำนวน</th><th>รอบ/วัน <small>(ว่าง=อัตโนมัติ)</small></th>
+                @if (Result is not null) { <th class="r">kWh/เดือน</th> }
+            </tr>
+        </thead>
+        <tbody>
+            @for (int k = 0; k < Input.Equipment.Count; k++)
+            {
+                var e = Input.Equipment[k];
+                var er = Result?.EquipmentRows.ElementAtOrDefault(k);
+                <tr>
+                    <td><input class="name wide" @bind="e.Name" @bind:after="Changed" /></td>
+                    <td><input type="number" step="any" @bind="e.Kw" @bind:after="Changed" /></td>
+                    <td><input type="number" step="any" @bind="e.Hours" @bind:after="Changed" /></td>
+                    <td><input type="number" step="any" @bind="e.Qty" @bind:after="Changed" /></td>
+                    <td><input type="number" placeholder="@(er?.RunsPerDay.ToString("0") ?? "อัตโนมัติ")" @bind="e.RunsPerDayOverride" @bind:after="Changed" /></td>
+                    @if (er is not null) { <td class="r">@N1(er.KwhPerMonth)</td> }
+                </tr>
+            }
+        </tbody>
+    </table>
+    @if (Result is not null)
+    {
+        <div class="calc">น้ำ @N1(Result.WaterM3) m³ = <b>@N0(Result.WaterCost)</b> • ไฟ @N0(Result.ElectricKwh) kWh = <b>@N0(Result.ElectricCost)</b> • รวม Utility <b>@N0(Result.UtilityCost)</b> บาท/เดือน</div>
+    }
+</div>
+
+<div class="card">
+    <h2><span class="num">@(++sec)</span>ค่า PM และระยะเวลาวิเคราะห์</h2>
+    <div class="grid g3">
+        <label>ค่า PM ต่อปี<input type="number" step="any" @bind="Input.PmPerYear" @bind:after="Changed" /></label>
+        <label>Warranty (ปี)<input type="number" min="0" @bind="Input.WarrantyYears" @bind:after="Changed" /></label>
+        <label>ระยะเวลาวิเคราะห์ (ปี)<input type="number" min="1" max="30" @bind="Input.HorizonYears" @bind:after="Changed" /></label>
+    </div>
+</div>
+
+<div class="card">
+    <h2><span class="num">@(++sec)</span>Scenario ปรับ Factor มาตรฐาน</h2>
+    <div class="grid g3">
+        <label class="check"><input type="checkbox" @bind="Input.ScenarioEnabled" @bind:after="Changed" /> แสดง Scenario ในรายงาน</label>
+        <label>Factor A (GL/Tx)<input type="number" step="any" @bind="Input.ScenarioFactorA" @bind:after="Changed" disabled="@(!Input.ScenarioEnabled)" /></label>
+        <label>Factor B (GL/Tx)<input type="number" step="any" @bind="Input.ScenarioFactorB" @bind:after="Changed" disabled="@(!Input.ScenarioEnabled)" /></label>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public CcdsInput Input { get; set; } = default!;
+    /// <summary>ผลคำนวณ (null = ไม่แสดงช่องที่คำนวณได้ เช่น หน้าตั้งค่า)</summary>
+    [Parameter] public CcdsResult? Result { get; set; }
+    [Parameter] public bool ShowProjectSections { get; set; } = true;
+    [Parameter] public EventCallback OnChange { get; set; }
+
+    private Task Changed() => OnChange.InvokeAsync();
+
+    private Task SetPowder(ARecipeInput r, bool v) { r.UsePowder = v; return Changed(); }
+    private Task Remove(ARecipeInput r) { Input.ARecipes.Remove(r); return Changed(); }
+    private Task Add() { Input.ARecipes.Add(new ARecipeInput { Name = $"A{Input.ARecipes.Count + 1}" }); return Changed(); }
+}

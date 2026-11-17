@@ -1,0 +1,981 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CCDS Feasibility Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<!--CCDS_DATA-->
+<style>
+:root {
+  --navy: #1e3a5f; --navy-l: #e8eef6; --navy-t: #bfd3ea;
+  --teal: #0f766e; --teal-l: #e6f4f2;
+  --green: #15803d; --green-l: #e7f6ec;
+  --red: #b91c1c; --red-l: #fdecec;
+  --amber: #b45309; --gold: #f59e0b;
+  --text: #1f2937; --muted: #6b7280; --line: #d6dce4; --stripe: #f7f9fc;
+  --bg: #f3f5f9; --card: #fff; --total: #fff4c2; --total-b: #e0b100;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { font-family: "Sarabun", "Leelawadee UI", "Leelawadee", Tahoma, sans-serif; font-size: 15px; color: var(--text); background: var(--bg); }
+.pos { color: var(--green); } .neg { color: var(--red); } .muted { color: var(--muted); }
+
+/* ---------- Top bar ---------- */
+.topbar { position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between;
+  padding: 10px 24px; background: var(--navy); color: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.15); }
+.brand .title { font-size: 20px; font-weight: 700; }
+.brand .sub { font-size: 13px; color: var(--navy-t); }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.actions .lbl { font-size: 13px; color: var(--navy-t); }
+.actions .sep { width: 1px; height: 24px; background: rgba(255,255,255,.25); margin: 0 4px; }
+.btn { font: inherit; font-size: 14px; cursor: pointer; border-radius: 6px; padding: 6px 14px; border: 1px solid transparent; }
+.btn.ghost { background: rgba(255,255,255,.08); color: #fff; border-color: rgba(255,255,255,.3); }
+.btn.ghost:hover { background: rgba(255,255,255,.18); }
+.btn.primary { background: var(--gold); color: #1f2937; font-weight: 700; }
+.btn.primary:hover { background: #fbbf24; }
+.btn.file { position: relative; overflow: hidden; }
+.btn.file input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.tabs { display: inline-flex; background: rgba(255,255,255,.1); border-radius: 8px; padding: 3px; }
+.tabs button { font: inherit; font-size: 14px; border: 0; background: none; color: var(--navy-t); padding: 5px 14px; border-radius: 6px; cursor: pointer; }
+.tabs button.on { background: #fff; color: var(--navy); font-weight: 700; }
+.msg { margin: 12px 24px 0; padding: 8px 12px; border-radius: 6px; background: var(--navy-l); color: var(--navy); }
+.msg:empty { display: none; }
+
+/* ---------- Edit view ---------- */
+.layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 20px; padding: 20px 24px 40px; max-width: 1500px; margin: 0 auto; }
+.results { position: sticky; top: 80px; align-self: start; max-height: calc(100vh - 96px); overflow-y: auto; padding-right: 4px; }
+.card { background: var(--card); border-radius: 10px; padding: 16px 18px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(16,24,40,.08); border: 1px solid #e5e9f0; overflow-x: auto; }
+.card h2 { margin: 0 0 12px; font-size: 17px; color: var(--navy); display: flex; align-items: center; gap: 8px; }
+.card h3 { margin: 0 0 10px; font-size: 16px; color: var(--navy); border-bottom: 2px solid var(--navy); padding-bottom: 4px; }
+.num { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--teal); color: #fff; font-size: 13px; flex: none; }
+.grid { display: grid; gap: 10px 14px; }
+.g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.span2 { grid-column: span 2; }
+label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+label.check { flex-direction: row; align-items: center; gap: 8px; color: var(--text); font-size: 14px; }
+input { font: inherit; font-size: 15px; color: var(--text); padding: 6px 9px; border: 1px solid var(--line); border-radius: 6px; background: #fff; width: 100%; }
+input[type=number] { text-align: right; }
+input[type=checkbox] { width: 18px; height: 18px; }
+input:focus { outline: 2px solid #93c5fd; border-color: #3b82f6; }
+input:disabled { background: #f3f4f6; color: var(--muted); }
+input.name { width: 70px; font-weight: 600; text-align: left; }
+input.name.wide { width: 130px; }
+.calc { margin-top: 10px; padding: 8px 10px; background: var(--navy-l); border-radius: 6px; font-size: 14px; }
+.mt { margin-top: 12px; }
+.tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
+.tbl th { background: var(--navy); color: #fff; font-weight: 600; text-align: left; padding: 6px 8px; font-size: 13px; }
+.tbl th small { font-weight: 400; color: var(--navy-t); }
+.tbl td { padding: 4px 6px; border-bottom: 1px solid #edf0f4; }
+.tbl tbody tr:nth-child(even) td { background: var(--stripe); }
+.tbl tfoot td { background: var(--total); font-weight: 700; border-top: 1px solid var(--total-b); border-bottom: 1px solid var(--total-b); padding: 6px 8px; }
+.tbl.compact td { padding: 5px 8px; }
+.tbl .r, .tbl th.r { text-align: right; }
+.tbl td input[type=number] { min-width: 80px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { white-space: nowrap; font: inherit; font-size: 13px; border: 0; background: #fff; color: var(--muted); padding: 4px 10px; cursor: pointer; }
+.seg button.on.powder { background: var(--teal); color: #fff; }
+.seg button.on.gl { background: var(--amber); color: #fff; }
+.pill { font-size: 13px; padding: 3px 10px; border-radius: 6px; background: var(--teal); color: #fff; white-space: nowrap; }
+.x { border: 0; background: none; color: var(--muted); font-size: 18px; cursor: pointer; }
+.x:hover { color: var(--red); }
+.link { border: 0; background: none; color: var(--teal); font: inherit; font-weight: 600; cursor: pointer; padding: 0; }
+.kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+.kpi { border-radius: 10px; padding: 12px 14px; border-top: 4px solid; display: flex; flex-direction: column; }
+.kpi span { font-size: 13px; color: var(--muted); }
+.kpi b { font-size: 26px; line-height: 1.2; }
+.kpi small { font-size: 12px; color: var(--muted); }
+.kpi.navy { background: var(--navy-l); border-color: var(--navy); } .kpi.navy b { color: var(--navy); }
+.kpi.teal { background: var(--teal-l); border-color: var(--teal); } .kpi.teal b { color: var(--teal); }
+.kpi.pos { background: var(--green-l); border-color: var(--green); } .kpi.pos b { color: var(--green); }
+.kpi.neg { background: var(--red-l); border-color: var(--red); } .kpi.neg b { color: var(--red); }
+.facts { list-style: none; margin: 0 0 12px; padding: 0; }
+.facts li { display: flex; justify-content: space-between; gap: 8px; padding: 5px 0; border-bottom: 1px solid #edf0f4; font-size: 14px; }
+.facts li small { color: var(--muted); }
+.facts li.total { background: var(--navy-l); padding: 7px 8px; border-radius: 6px; border: 0; margin-top: 6px; font-weight: 700; }
+.bars { display: flex; flex-direction: column; gap: 4px; }
+.bar-row { display: grid; grid-template-columns: 44px 1fr 110px; align-items: center; gap: 8px; font-size: 13px; }
+.bar-row .yr { color: var(--muted); }
+.bar-row .val { text-align: right; font-variant-numeric: tabular-nums; }
+.track { position: relative; height: 14px; background: #f1f3f6; border-radius: 3px; }
+.track::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: #9ca3af; }
+.fill { position: absolute; top: 0; bottom: 0; border-radius: 2px; }
+.fill.pos { background: #22a05a; } .fill.pos.lease { background: #7fd1a1; }
+.fill.neg { background: #e05252; } .fill.neg.lease { background: #f1a3a3; }
+
+@media (max-width: 1050px) {
+  .layout { grid-template-columns: minmax(0, 1fr); padding: 16px; }
+  .results { position: static; max-height: none; overflow: visible; }
+  .topbar { padding: 10px 16px; position: static; }
+}
+@media (max-width: 640px) {
+  .g3 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .kpi b { font-size: 21px; }
+  .bar-row { grid-template-columns: 40px 1fr 90px; }
+  .msg { margin: 12px 16px 0; }
+}
+
+/* ---------- Report view (A4) ---------- */
+.report-wrap { padding: 24px 16px 40px; overflow-x: auto; }
+.page { width: 210mm; min-height: 297mm; margin: 0 auto 20px; background: #fff; padding: 9mm; box-shadow: 0 4px 18px rgba(16,24,40,.15);
+  display: flex; flex-direction: column; font-size: 9pt; line-height: 1.25; color: var(--text); }
+.page .content { flex: 1; display: flex; flex-direction: column; gap: 3.2mm; }
+.ph { margin-bottom: 3.5mm; }
+.ph-top { background: var(--navy); color: #fff; padding: 4mm; display: flex; justify-content: space-between; gap: 4mm; }
+.ph-top .t1 { font-size: 17pt; font-weight: 700; line-height: 1.15; }
+.ph-top .t1 small { font-size: 13pt; font-weight: 400; color: var(--navy-t); }
+.ph-top .t2 { font-size: 12pt; font-weight: 600; }
+.ph-top .meta { text-align: right; font-size: 9.5pt; align-self: center; }
+.ph-top .meta div + div { color: var(--navy-t); font-size: 8.5pt; }
+.ph-sub { background: var(--teal); color: #fff; font-weight: 600; font-size: 10pt; padding: 1.3mm 4mm; }
+.pf { border-top: .5pt solid var(--line); padding-top: 1.4mm; margin-top: 3mm; display: flex; justify-content: space-between; font-size: 7.5pt; color: var(--muted); }
+.r-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2.8mm; }
+.r-kpi { padding: 2.8mm; border-top: 3pt solid; }
+.r-kpi .l { font-size: 8pt; color: var(--muted); }
+.r-kpi .v { font-size: 15pt; font-weight: 700; line-height: 1.2; }
+.r-kpi .v small { font-size: 7.5pt; font-weight: 400; color: var(--muted); }
+.r-kpi .n { font-size: 7.5pt; color: var(--muted); }
+.r-kpi.navy { background: var(--navy-l); border-color: var(--navy); } .r-kpi.navy .v { color: var(--navy); }
+.r-kpi.teal { background: var(--teal-l); border-color: var(--teal); } .r-kpi.teal .v { color: var(--teal); }
+.r-kpi.pos { background: var(--green-l); border-color: var(--green); } .r-kpi.pos .v { color: var(--green); }
+.r-kpi.neg { background: var(--red-l); border-color: var(--red); } .r-kpi.neg .v { color: var(--red); }
+.verdict { padding: 2.8mm; border-left: 4pt solid; }
+.verdict.pos { background: var(--green-l); border-color: var(--green); }
+.verdict.neg { background: var(--red-l); border-color: var(--red); }
+.verdict .h { font-weight: 700; }
+.verdict.pos .h { color: var(--green); } .verdict.neg .h { color: var(--red); }
+.sec { font-size: 10.5pt; font-weight: 700; color: var(--navy); border-bottom: 1.2pt solid var(--navy); padding-bottom: .6mm; margin-bottom: 1.4mm; }
+.cols { display: grid; gap: 4mm; }
+.rt { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
+.rt th { background: var(--navy); color: #fff; font-weight: 600; font-size: 8pt; padding: 1mm 1.4mm; text-align: right; }
+.rt th.l, .rt td.l { text-align: left; }
+.rt td { padding: .8mm 1.4mm; border-bottom: .5pt solid var(--line); text-align: right; }
+.rt tbody tr:nth-child(even) td { background: var(--stripe); }
+.rt tr.sub td { background: var(--navy-l) !important; font-weight: 600; }
+.rt tr.tot td { background: var(--total) !important; font-weight: 700; border-top: 1pt solid var(--total-b); border-bottom: 1pt solid var(--total-b); }
+.rt td.neg { color: var(--red); }
+.rt.small td, .rt.small th { font-size: 7.5pt; padding: .7mm 1mm; }
+.rt .tag { font-weight: 600; font-size: 8pt; }
+.rt .tag.powder { color: var(--teal); } .rt .tag.gl { color: var(--amber); }
+.saving-row { display: flex; justify-content: space-between; padding: 1.3mm 1.4mm; font-weight: 600; }
+.saving-row.pos { background: var(--green-l); } .saving-row.neg { background: var(--red-l); }
+.saving-row b { font-weight: 700; }
+.stack-l { font-weight: 600; margin-top: 1.4mm; } .stack-l span { font-weight: 400; color: var(--muted); }
+.stack { display: flex; height: 18px; background: #f1f3f6; margin-top: .8mm; }
+.legend { font-size: 7.5pt; color: var(--muted); margin-top: 1.6mm; display: flex; flex-wrap: wrap; gap: 1mm 3mm; }
+.legend i { display: inline-block; width: 7pt; height: 7pt; margin-right: 1mm; vertical-align: -1pt; }
+.facts-r div.f { display: flex; justify-content: space-between; align-items: center; border-bottom: .5pt solid var(--line); padding: .9mm 0; }
+.facts-r .note { font-size: 7pt; color: var(--muted); }
+.facts-r b { font-weight: 600; }
+.facts-r .tot { margin-top: 1.4mm; padding: 1.5mm; display: flex; justify-content: space-between; align-items: center; font-weight: 700; }
+.facts-r .tot.pos { background: var(--green-l); } .facts-r .tot.neg { background: var(--red-l); }
+.facts-r .tot b { font-size: 11pt; font-weight: 700; }
+.ychart { border: .5pt solid var(--line); padding: 2mm; }
+.ychart .cols-y { display: flex; }
+.ychart .yc { flex: 1; padding: 0 2px; display: flex; flex-direction: column; text-align: center; }
+.ychart .zone { display: flex; }
+.ychart .zone.p { align-items: flex-end; } .ychart .zone.n { align-items: flex-start; }
+.ychart .zone div { width: 100%; }
+.ychart .zero { height: 1px; background: var(--muted); }
+.ychart .lab { font-size: 7pt; color: var(--muted); margin-top: .6mm; }
+.ychart .val { font-size: 6.5pt; }
+.ychart .cap { font-size: 7pt; color: var(--muted); margin-top: 1mm; }
+.note-box { background: var(--navy-l); padding: 2mm; }
+.foot-note { font-size: 8pt; color: var(--muted); margin-top: 1mm; }
+.foot-note b { color: var(--navy); }
+
+/* ---------- Print ---------- */
+@page { size: A4; margin: 0; }
+@media print {
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { background: #fff; }
+  .topbar, .msg, #edit-view { display: none !important; }
+  #report-view { display: block !important; }
+  .report-wrap { padding: 0; overflow: visible; }
+  .page { margin: 0; box-shadow: none; height: 297mm; min-height: 0; overflow: hidden; break-after: page; }
+  .page:last-child { break-after: auto; }
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <div class="title">CCDS Feasibility Simulator</div>
+    <div class="sub">กรอกข้อมูล → คำนวณอัตโนมัติ → พิมพ์ / บันทึกเป็น PDF</div>
+  </div>
+  <div class="actions">
+    <div class="tabs">
+      <button data-action="view" data-view="edit">กรอกข้อมูล</button>
+      <button data-action="view" data-view="report">รายงาน</button>
+    </div>
+    <span class="sep"></span>
+    <span class="lbl">ข้อมูลตัวอย่าง:</span>
+    <button class="btn ghost" data-action="preset" data-preset="S1">ตัวอย่าง 1</button>
+    <button class="btn ghost" data-action="preset" data-preset="S2">ตัวอย่าง 2</button>
+    <button class="btn ghost" data-action="preset" data-preset="Blank">ล้างข้อมูล</button>
+    <span class="sep"></span>
+    <label class="btn ghost file">เปิดไฟล์ข้อมูล<input type="file" id="file-in" accept=".json,application/json"></label>
+    <button class="btn ghost" data-action="save">บันทึกข้อมูล</button>
+    <button class="btn primary" data-action="print">พิมพ์ / บันทึก PDF</button>
+  </div>
+</header>
+<div class="msg" id="msg"></div>
+
+<main id="edit-view">
+  <div class="layout">
+    <section id="form"></section>
+    <aside class="results" id="results"></aside>
+  </div>
+</main>
+<main id="report-view" hidden>
+  <div class="report-wrap" id="report"></div>
+</main>
+
+<script>
+"use strict";
+/* =====================================================================
+   CCDS Feasibility Simulator (HTML)
+   สูตรคำนวณเดียวกับโปรแกรม C# (Services/CcdsCalculator.cs)
+   ไฟล์ข้อมูล .json ใช้รูปแบบเดียวกัน เปิดสลับกันได้
+   ===================================================================== */
+
+const KIND = { MixingA: 0, MixingB: 1, Continuous: 2 };
+const STORE_KEY = "ccds-simulator-input-v1";
+
+// ---------------- ข้อมูลตั้งต้น ----------------
+function build(site, model, month, machines, t, a1, a2, a3, a6, b, priceA, priceB, leasing) {
+  return {
+    SiteName: site, ModelName: model, Month: month, Machines: machines, TreatmentsPerMonth: t,
+    ARecipes: [
+      { Name: "A1", Gallons: a1, UsePowder: false },
+      { Name: "A2", Gallons: a2, UsePowder: true },
+      { Name: "A3", Gallons: a3, UsePowder: false },
+      { Name: "A6", Gallons: a6, UsePowder: false },
+    ],
+    GallonsB: b,
+    LiterPerGallonA: 5.5, LiterPerGallonB: 6, PricePerGallonA: priceA, PricePerGallonB: priceB, GallonSalePrice: 4,
+    CcdsPricePerGallonA: 50,
+    LeasingPrice: leasing, InterestRatePercent: 4, InstallmentYears: 5,
+    PowderA: { CostPerBox: 1000, MixPerBox: 20, MixLiter: 5 },
+    PowderB: { CostPerBox: 1100, MixPerBox: 40, MixLiter: 6 },
+    WaterRate: 30, WaterM3Per1000Liter: 2, ElectricRate: 4.9, DaysPerMonth: 30, MixTankLiterA: 100, MixTankLiterB: 120,
+    Equipment: [
+      { Name: "Mixing A", Kind: KIND.MixingA, Kw: 0.25, Hours: 0.5, Qty: 2, RunsPerDayOverride: null },
+      { Name: "Mixing B", Kind: KIND.MixingB, Kw: 0.25, Hours: 0.5, Qty: 2, RunsPerDayOverride: null },
+      { Name: "Cir. Pump A", Kind: KIND.Continuous, Kw: 0.33, Hours: 18, Qty: 1, RunsPerDayOverride: null },
+      { Name: "Cir. Pump B", Kind: KIND.Continuous, Kw: 0.33, Hours: 18, Qty: 1, RunsPerDayOverride: null },
+    ],
+    PmPerYear: 160000, WarrantyYears: 4, HorizonYears: 10,
+    ScenarioEnabled: true, ScenarioFactorA: 0.8, ScenarioFactorB: 1.0,
+  };
+}
+const PRESETS = {
+  // ตัวเลขสมมติ (ตรงกับ Presets.Sample1 / Sample2 ในโปรแกรม C#)
+  S1: () => build("ตัวอย่าง หน่วยไตเทียม 28 เครื่อง", "ตัวอย่าง 1", "", 28, 2900, 450, 1200, 150, 170, 2000, 60, 55, 2600000),
+  S2: () => build("ตัวอย่าง หน่วยไตเทียม 36 เครื่อง", "ตัวอย่าง 2", "", 36, 3000, 700, 1100, 150, 130, 2200, 60, 55, 2700000),
+  Blank: () => build("", "", "", 0, 0, 0, 0, 0, 0, 0, 60, 55, 0),
+};
+
+// ---------------- ตัวคำนวณ ----------------
+const n = v => { const x = Number(v); return Number.isFinite(x) ? x : 0; };
+const div = (a, b) => (b === 0 ? 0 : a / b);
+const sum = (arr, f) => arr.reduce((s, x) => s + f(x), 0);
+const ceil = v => Math.ceil(v - 1e-9);
+
+function calculate(i) {
+  const t = n(i.TreatmentsPerMonth);
+  const totalA = sum(i.ARecipes, r => n(r.Gallons));
+  const glB = n(i.GallonsB);
+
+  // 1) แบบ GL
+  const aRows = i.ARecipes.map(r => ({ Name: r.Name, Gallons: n(r.Gallons), Treatments: div(n(r.Gallons), totalA) * t }));
+  const avgA = div(totalA, t), avgB = div(glB, t);
+  const literA = avgA * n(i.LiterPerGallonA), literB = avgB * n(i.LiterPerGallonB);
+  const glCostA = totalA * n(i.PricePerGallonA), glCostB = glB * n(i.PricePerGallonB);
+  const totalGl = totalA + glB;
+  const glSale = totalGl * n(i.GallonSalePrice);
+  const glNet = glCostA + glCostB - glSale;
+
+  // 2) Leasing (Flat)
+  const years = Math.trunc(n(i.InstallmentYears));
+  const interest = n(i.LeasingPrice) * n(i.InterestRatePercent) / 100 * years;
+  const leasingTotal = n(i.LeasingPrice) + interest;
+  const leasingMonth = div(leasingTotal, years * 12);
+
+  // 3) ผงผสม
+  const powder = (name, p, lpt) => {
+    const literPerBox = n(p.MixPerBox) * n(p.MixLiter);
+    const treatPerBox = div(literPerBox, lpt);
+    return { Name: name, CostPerBox: n(p.CostPerBox), MixPerBox: n(p.MixPerBox), MixLiter: n(p.MixLiter),
+             LiterPerBox: literPerBox, TreatmentsPerBox: treatPerBox, CostPerTreat: div(n(p.CostPerBox), treatPerBox) };
+  };
+  const powderA = powder("A", i.PowderA, literA), powderB = powder("B", i.PowderB, literB);
+
+  // 4) CCDS
+  const ccdsRows = i.ARecipes.map((rec, k) => {
+    const tr = aRows[k].Treatments;
+    return rec.UsePowder
+      ? { Name: rec.Name, IsPowder: true, Gallons: 0, Treatments: tr, PricePerGallon: 0, CostPerTreat: powderA.CostPerTreat,
+          CostPerMonth: tr * powderA.CostPerTreat, MixedLiters: tr * literA }
+      : { Name: rec.Name, IsPowder: false, Gallons: n(rec.Gallons), Treatments: tr, PricePerGallon: n(i.CcdsPricePerGallonA),
+          CostPerTreat: avgA * n(i.CcdsPricePerGallonA), CostPerMonth: n(rec.Gallons) * n(i.CcdsPricePerGallonA), MixedLiters: 0 };
+  });
+  ccdsRows.push({ Name: "B", IsPowder: true, Gallons: 0, Treatments: t, PricePerGallon: 0, CostPerTreat: powderB.CostPerTreat,
+                  CostPerMonth: t * powderB.CostPerTreat, MixedLiters: t * literB });
+  const powderCost = sum(ccdsRows.filter(r => r.IsPowder), r => r.CostPerMonth);
+  const otherGlCost = sum(ccdsRows.filter(r => !r.IsPowder), r => r.CostPerMonth);
+  const otherGallons = sum(ccdsRows.filter(r => !r.IsPowder), r => r.Gallons);
+  const ccdsGlSale = otherGallons * n(i.GallonSalePrice);
+  const litersA = sum(ccdsRows.filter(r => r.IsPowder && r.Name !== "B"), r => r.MixedLiters);
+  const litersB = t * literB;
+  const litersTotal = litersA + litersB;
+
+  // 5) Utility
+  const waterM3 = litersTotal * n(i.WaterM3Per1000Liter) / 1000;
+  const waterCost = waterM3 * n(i.WaterRate);
+  const days = Math.max(Math.trunc(n(i.DaysPerMonth)), 1);
+  const autoA = ceil(div(litersA / days, n(i.MixTankLiterA)));
+  const autoB = ceil(div(litersB / days, n(i.MixTankLiterB)));
+  const eqRows = i.Equipment.map(e => {
+    const ov = e.RunsPerDayOverride;
+    const runs = (ov !== null && ov !== undefined && ov !== "") ? n(ov)
+      : e.Kind === KIND.MixingA ? autoA : e.Kind === KIND.MixingB ? autoB : 1;
+    const perDay = n(e.Kw) * n(e.Hours) * n(e.Qty) * runs;
+    return { Name: e.Name, Kw: n(e.Kw), Hours: n(e.Hours), Qty: n(e.Qty), RunsPerDay: runs, KwhPerDay: perDay, KwhPerMonth: perDay * days };
+  });
+  const kwh = sum(eqRows, e => e.KwhPerMonth);
+  const electricCost = kwh * n(i.ElectricRate);
+  const utility = waterCost + electricCost;
+  const ccdsNet = leasingMonth + powderCost + otherGlCost + utility - ccdsGlSale;
+
+  // 6) ระยะยาว
+  const saving = glNet - ccdsNet;
+  const ny = Math.max(years, 0);
+  const warranty = Math.trunc(n(i.WarrantyYears));
+  const pm = n(i.PmPerYear);
+  const savingLease = saving * 12 * ny;
+  const pmLease = Math.max(0, ny - warranty) * pm;
+  const monthAfter = saving + leasingMonth - pm / 12;
+  const yearRows = [];
+  let cum = 0, breakEven = null;
+  for (let y = 1; y <= Math.max(Math.trunc(n(i.HorizonYears)), 1); y++) {
+    const s = saving * 12, p = y > warranty ? pm : 0, freed = y > ny ? leasingMonth * 12 : 0;
+    const net = s - p + freed;
+    cum += net;
+    if (breakEven === null && cum > 0) breakEven = y;
+    yearRows.push({ Year: y, Saving: s, Pm: p, LeasingFreed: freed, Net: net, Cumulative: cum });
+  }
+
+  return {
+    Input: i, Treatments: t, ARows: aRows, TotalGallonsA: totalA, GallonsB: glB, TotalGallons: totalGl,
+    AvgGallonPerTreatA: avgA, AvgGallonPerTreatB: avgB, LiterPerTreatA: literA, LiterPerTreatB: literB,
+    GlCostPerTreatA: avgA * n(i.PricePerGallonA), GlCostPerTreatB: avgB * n(i.PricePerGallonB),
+    GlCostMonthA: glCostA, GlCostMonthB: glCostB, GlCostMonth: glCostA + glCostB, GlSaleRevenue: glSale, GlNetMonth: glNet,
+    LeasingTotalInterest: interest, LeasingTotal: leasingTotal, LeasingPerMonth: leasingMonth,
+    PowderA: powderA, PowderB: powderB, CcdsRows: ccdsRows, CcdsPowderCost: powderCost, CcdsOtherGlCost: otherGlCost,
+    CcdsOtherGallons: otherGallons, CcdsGlSaleRevenue: ccdsGlSale, MixedLitersA: litersA, MixedLitersB: litersB, MixedLitersTotal: litersTotal,
+    WaterM3: waterM3, WaterCost: waterCost, EquipmentRows: eqRows, ElectricKwh: kwh, ElectricCost: electricCost, UtilityCost: utility,
+    CcdsNetMonth: ccdsNet, SavingPerMonth: saving, GlCostPerTreatment: div(glNet, t), CcdsCostPerTreatment: div(ccdsNet, t),
+    SavingDuringLease: savingLease, PmDuringLease: pmLease, SavingDuringLeaseAfterPm: savingLease - pmLease,
+    SavingPerMonthAfterLease: monthAfter, SavingPerYearAfterLease: monthAfter * 12, SavingHorizon: cum,
+    Years: yearRows, BreakEvenYear: breakEven,
+  };
+}
+
+/** Scenario: GL(A) = ปัดขึ้น(Treatment สูตรนั้น) × Factor A, GL(B) = Treatment × Factor B */
+function buildScenario(i) {
+  const totalA = sum(i.ARecipes, r => n(r.Gallons));
+  const c = JSON.parse(JSON.stringify(i));
+  c.ARecipes.forEach((r, k) => { r.Gallons = ceil(div(n(i.ARecipes[k].Gallons), totalA) * n(i.TreatmentsPerMonth)) * n(i.ScenarioFactorA); });
+  c.GallonsB = n(i.TreatmentsPerMonth) * n(i.ScenarioFactorB);
+  c.ScenarioEnabled = false;
+  return c;
+}
+
+// ---------------- รูปแบบตัวเลข ----------------
+const fmt = dp => new Intl.NumberFormat("en-US", { minimumFractionDigits: dp, maximumFractionDigits: dp });
+const F0 = fmt(0), F1 = fmt(1), F2 = fmt(2);
+const fix0 = v => (Math.abs(v) < 0.5 ? 0 : v);           // ป้องกัน "-0"
+const N0 = v => F0.format(fix0(v));
+const N1 = v => F1.format(Math.abs(v) < 0.05 ? 0 : v);
+const N2 = v => F2.format(Math.abs(v) < 0.005 ? 0 : v);
+const Signed = (v, dp = 0) => { const s = dp ? N2(v) : N0(v); return (Number(s.replace(/,/g, "")) > 0 ? "+" : "") + s; };
+const Pct = (part, whole) => whole === 0 ? "-" : ((part / whole >= 0 ? "+" : "") + (part / whole * 100).toFixed(1) + "%");
+const cls = v => (v >= 0 ? "pos" : "neg");
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const dash = s => (String(s ?? "").trim() === "" ? "-" : esc(s));
+const short = v => {
+  const a = Math.abs(v);
+  const s = a >= 1e6 ? (v / 1e6).toFixed(2) + "M" : a >= 1e3 ? (v / 1e3).toFixed(0) + "K" : v.toFixed(0);
+  return v > 0 ? "+" + s : s;
+};
+
+// ---------------- สถานะ ----------------
+let input = loadInitial();
+let view = window.CCDS_VIEW === "report" ? "report" : "edit";
+
+function loadInitial() {
+  if (window.CCDS_INPUT) return normalize(window.CCDS_INPUT);
+  try { const s = localStorage.getItem(STORE_KEY); if (s) return normalize(JSON.parse(s)); } catch (e) { /* ignore */ }
+  return PRESETS.S1();
+}
+function normalize(o) {
+  const base = PRESETS.Blank();
+  const x = Object.assign(base, o || {});
+  x.PowderA = Object.assign(PRESETS.Blank().PowderA, x.PowderA || {});
+  x.PowderB = Object.assign(PRESETS.Blank().PowderB, x.PowderB || {});
+  x.ARecipes = Array.isArray(x.ARecipes) ? x.ARecipes : [];
+  x.Equipment = Array.isArray(x.Equipment) ? x.Equipment : [];
+  return x;
+}
+function persist() { try { localStorage.setItem(STORE_KEY, JSON.stringify(input)); } catch (e) { /* ignore */ } }
+function message(t) { document.getElementById("msg").textContent = t || ""; }
+
+// ---------------- ฟอร์ม ----------------
+const numIn = (path, val, extra = "") => `<input type="number" step="any" data-path="${path}" value="${val ?? ""}" ${extra}>`;
+const txtIn = (path, val, cls = "") => `<input class="${cls}" data-path="${path}" value="${esc(val)}">`;
+const fld = (label, inner, cls = "") => `<label class="${cls}">${label}${inner}</label>`;
+
+function renderForm() {
+  const i = input;
+  const recipes = i.ARecipes.map((rec, k) => `
+    <tr>
+      <td>${txtIn(`ARecipes.${k}.Name`, rec.Name, "name")}</td>
+      <td>${numIn(`ARecipes.${k}.Gallons`, rec.Gallons)}</td>
+      <td class="r muted" id="c-treat-${k}"></td>
+      <td><div class="seg">
+        <button class="${rec.UsePowder ? "on powder" : ""}" data-action="powder" data-k="${k}" data-v="1">ผงผสม</button>
+        <button class="${!rec.UsePowder ? "on gl" : ""}" data-action="powder" data-k="${k}" data-v="0">แกลลอน</button>
+      </div></td>
+      <td><button class="x" title="ลบ" data-action="remove" data-k="${k}">×</button></td>
+    </tr>`).join("");
+
+  const powderRow = (name, key) => `
+    <tr><td><b>${name}</b></td>
+      <td>${numIn(`${key}.CostPerBox`, i[key].CostPerBox)}</td>
+      <td>${numIn(`${key}.MixPerBox`, i[key].MixPerBox)}</td>
+      <td>${numIn(`${key}.MixLiter`, i[key].MixLiter)}</td>
+      <td class="r muted" id="c-${key}-tpb"></td>
+      <td class="r"><b id="c-${key}-cpt"></b></td></tr>`;
+
+  const equip = i.Equipment.map((e, k) => `
+    <tr>
+      <td>${txtIn(`Equipment.${k}.Name`, e.Name, "name wide")}</td>
+      <td>${numIn(`Equipment.${k}.Kw`, e.Kw)}</td>
+      <td>${numIn(`Equipment.${k}.Hours`, e.Hours)}</td>
+      <td>${numIn(`Equipment.${k}.Qty`, e.Qty)}</td>
+      <td>${numIn(`Equipment.${k}.RunsPerDayOverride`, e.RunsPerDayOverride, `id="c-eq-ph-${k}"`)}</td>
+      <td class="r" id="c-eq-${k}"></td>
+    </tr>`).join("");
+
+  document.getElementById("form").innerHTML = `
+    <div class="card"><h2><span class="num">1</span>ข้อมูลทั่วไป</h2>
+      <div class="grid g3">
+        ${fld("ชื่อหน่วยไตเทียม / ลูกค้า", txtIn("SiteName", i.SiteName), "span2")}
+        ${fld("Model", txtIn("ModelName", i.ModelName))}
+        ${fld("ข้อมูลเดือน", txtIn("Month", i.Month))}
+        ${fld("จำนวนเครื่อง", numIn("Machines", i.Machines))}
+        ${fld("Treatment / เดือน", numIn("TreatmentsPerMonth", i.TreatmentsPerMonth))}
+      </div></div>
+
+    <div class="card"><h2><span class="num">2</span>ปริมาณน้ำยาที่ใช้ต่อเดือน (แกลลอน)</h2>
+      <table class="tbl">
+        <thead><tr><th>สูตร</th><th>แกลลอน / เดือน</th><th class="r">Treatment</th><th>เมื่อใช้ CCDS</th><th></th></tr></thead>
+        <tbody>${recipes}
+          <tr><td><b>B</b></td><td>${numIn("GallonsB", i.GallonsB)}</td><td class="r muted" id="c-treat-b"></td>
+              <td><span class="pill">ผงผสม</span></td><td></td></tr>
+        </tbody>
+        <tfoot><tr><td>รวม</td><td class="r" id="c-total-gl"></td>
+          <td colspan="3"><button class="link" data-action="add">+ เพิ่มสูตร A</button></td></tr></tfoot>
+      </table></div>
+
+    <div class="card"><h2><span class="num">3</span>ราคาน้ำยาแบบแกลลอน (ปัจจุบัน)</h2>
+      <div class="grid g3">
+        ${fld("ราคา A / แกลลอน", numIn("PricePerGallonA", i.PricePerGallonA))}
+        ${fld("ราคา B / แกลลอน", numIn("PricePerGallonB", i.PricePerGallonB))}
+        ${fld("ขายแกลลอนเปล่าคืน (บาท/GL)", numIn("GallonSalePrice", i.GallonSalePrice))}
+        ${fld("ลิตร / แกลลอน A", numIn("LiterPerGallonA", i.LiterPerGallonA))}
+        ${fld("ลิตร / แกลลอน B", numIn("LiterPerGallonB", i.LiterPerGallonB))}
+        ${fld("ราคา A / GL เมื่อใช้ CCDS", numIn("CcdsPricePerGallonA", i.CcdsPricePerGallonA))}
+      </div></div>
+
+    <div class="card"><h2><span class="num">4</span>ค่าเช่าซื้อเครื่อง CCDS (Leasing)</h2>
+      <div class="grid g3">
+        ${fld("ราคาเครื่อง (บาท)", numIn("LeasingPrice", i.LeasingPrice))}
+        ${fld("ดอกเบี้ย Flat (% ต่อปี)", numIn("InterestRatePercent", i.InterestRatePercent))}
+        ${fld("จำนวนปีผ่อน", numIn("InstallmentYears", i.InstallmentYears, 'step="1" min="0"'))}
+      </div>
+      <div class="calc" id="c-leasing"></div></div>
+
+    <div class="card"><h2><span class="num">5</span>ผงผสม (Powder)</h2>
+      <table class="tbl">
+        <thead><tr><th></th><th>ราคา / กล่อง</th><th>ผสมได้ (ครั้ง/กล่อง)</th><th>ลิตร / ครั้ง</th><th class="r">Tx / กล่อง</th><th class="r">บาท / Tx</th></tr></thead>
+        <tbody>${powderRow("A", "PowderA")}${powderRow("B", "PowderB")}</tbody>
+      </table></div>
+
+    <div class="card"><h2><span class="num">6</span>Utility (น้ำ / ไฟ)</h2>
+      <div class="grid g3">
+        ${fld("ค่าน้ำ (บาท/m³)", numIn("WaterRate", i.WaterRate))}
+        ${fld("น้ำ RO (m³ ต่อน้ำยา 1,000 L)", numIn("WaterM3Per1000Liter", i.WaterM3Per1000Liter))}
+        ${fld("ค่าไฟ (บาท/kWh)", numIn("ElectricRate", i.ElectricRate))}
+        ${fld("วันทำงาน / เดือน", numIn("DaysPerMonth", i.DaysPerMonth, 'step="1" min="1"'))}
+        ${fld("ถังผสม A (ลิตร/ครั้ง)", numIn("MixTankLiterA", i.MixTankLiterA))}
+        ${fld("ถังผสม B (ลิตร/ครั้ง)", numIn("MixTankLiterB", i.MixTankLiterB))}
+      </div>
+      <table class="tbl mt">
+        <thead><tr><th>อุปกรณ์</th><th>kW</th><th>ชม./รอบ</th><th>จำนวน</th><th>รอบ/วัน <small>(ว่าง=อัตโนมัติ)</small></th><th class="r">kWh/เดือน</th></tr></thead>
+        <tbody>${equip}</tbody>
+      </table>
+      <div class="calc" id="c-utility"></div></div>
+
+    <div class="card"><h2><span class="num">7</span>ค่า PM และระยะเวลาวิเคราะห์</h2>
+      <div class="grid g3">
+        ${fld("ค่า PM ต่อปี", numIn("PmPerYear", i.PmPerYear))}
+        ${fld("Warranty (ปี)", numIn("WarrantyYears", i.WarrantyYears, 'step="1" min="0"'))}
+        ${fld("ระยะเวลาวิเคราะห์ (ปี)", numIn("HorizonYears", i.HorizonYears, 'step="1" min="1" max="30"'))}
+      </div></div>
+
+    <div class="card"><h2><span class="num">8</span>Scenario ปรับ Factor มาตรฐาน</h2>
+      <div class="grid g3">
+        <label class="check"><input type="checkbox" data-path="ScenarioEnabled" ${i.ScenarioEnabled ? "checked" : ""}> แสดง Scenario ในรายงาน</label>
+        ${fld("Factor A (GL/Tx)", numIn("ScenarioFactorA", i.ScenarioFactorA, i.ScenarioEnabled ? "" : "disabled"))}
+        ${fld("Factor B (GL/Tx)", numIn("ScenarioFactorB", i.ScenarioFactorB, i.ScenarioEnabled ? "" : "disabled"))}
+      </div></div>`;
+}
+
+function setText(id, html) { const el = document.getElementById(id); if (el) el.innerHTML = html; }
+
+function updateFormCalcs(r) {
+  r.ARows.forEach((a, k) => setText(`c-treat-${k}`, N0(a.Treatments)));
+  setText("c-treat-b", N0(r.Treatments));
+  setText("c-total-gl", N0(r.TotalGallons));
+  setText("c-leasing", `ดอกเบี้ยรวม <b>${N0(r.LeasingTotalInterest)}</b> • ยอดรวม <b>${N0(r.LeasingTotal)}</b> • ค่างวด <b>${N2(r.LeasingPerMonth)}</b> บาท/เดือน`);
+  setText("c-PowderA-tpb", N2(r.PowderA.TreatmentsPerBox)); setText("c-PowderA-cpt", N2(r.PowderA.CostPerTreat));
+  setText("c-PowderB-tpb", N2(r.PowderB.TreatmentsPerBox)); setText("c-PowderB-cpt", N2(r.PowderB.CostPerTreat));
+  r.EquipmentRows.forEach((e, k) => {
+    setText(`c-eq-${k}`, N1(e.KwhPerMonth));
+    const ph = document.getElementById(`c-eq-ph-${k}`); if (ph) ph.placeholder = String(e.RunsPerDay);
+  });
+  setText("c-utility", `น้ำ ${N1(r.WaterM3)} m³ = <b>${N0(r.WaterCost)}</b> • ไฟ ${N0(r.ElectricKwh)} kWh = <b>${N0(r.ElectricCost)}</b> • รวม Utility <b>${N0(r.UtilityCost)}</b> บาท/เดือน`);
+}
+
+// ---------------- แผงผลลัพธ์ ----------------
+function renderResults(r, s) {
+  const i = r.Input;
+  const maxAbs = Math.max(1, ...r.Years.map(y => Math.abs(y.Cumulative)));
+  const bars = r.Years.map(y => {
+    const pct = Math.abs(y.Cumulative) / maxAbs * 50;
+    const side = y.Cumulative >= 0 ? `left:50%;width:${pct}%` : `right:50%;width:${pct}%`;
+    return `<div class="bar-row"><span class="yr">ปี ${y.Year}</span>
+      <div class="track"><div class="fill ${cls(y.Cumulative)} ${y.Year <= i.InstallmentYears ? "lease" : ""}" style="${side}"></div></div>
+      <span class="val ${cls(y.Cumulative)}">${N0(y.Cumulative)}</span></div>`;
+  }).join("");
+
+  const scen = s ? `
+    <div class="card"><h3>Scenario: Factor A ${n(i.ScenarioFactorA).toFixed(2)} / B ${n(i.ScenarioFactorB).toFixed(2)}</h3>
+      <table class="tbl compact">
+        <thead><tr><th></th><th class="r">ข้อมูลจริง</th><th class="r">Scenario</th></tr></thead>
+        <tbody>
+          <tr><td>ค่าใช้จ่ายแบบ GL</td><td class="r">${N0(r.GlNetMonth)}</td><td class="r">${N0(s.GlNetMonth)}</td></tr>
+          <tr><td>ค่าใช้จ่ายแบบ CCDS</td><td class="r">${N0(r.CcdsNetMonth)}</td><td class="r">${N0(s.CcdsNetMonth)}</td></tr>
+          <tr><td>Cost Saving / เดือน</td><td class="r ${cls(r.SavingPerMonth)}">${Signed(r.SavingPerMonth)}</td><td class="r ${cls(s.SavingPerMonth)}">${Signed(s.SavingPerMonth)}</td></tr>
+        </tbody>
+        <tfoot><tr><td>สะสม ${i.HorizonYears} ปี</td><td class="r ${cls(r.SavingHorizon)}">${Signed(r.SavingHorizon)}</td><td class="r ${cls(s.SavingHorizon)}">${Signed(s.SavingHorizon)}</td></tr></tfoot>
+      </table></div>` : "";
+
+  document.getElementById("results").innerHTML = `
+    <div class="kpis">
+      <div class="kpi navy"><span>ค่าใช้จ่ายแบบ GL</span><b>${N0(r.GlNetMonth)}</b><small>บาท/เดือน • ${N2(r.GlCostPerTreatment)}/Tx</small></div>
+      <div class="kpi teal"><span>ค่าใช้จ่ายแบบ CCDS</span><b>${N0(r.CcdsNetMonth)}</b><small>บาท/เดือน • ${N2(r.CcdsCostPerTreatment)}/Tx</small></div>
+      <div class="kpi ${cls(r.SavingPerMonth)}"><span>Cost Saving / เดือน</span><b>${Signed(r.SavingPerMonth)}</b><small>ช่วงผ่อน ${esc(i.InstallmentYears)} ปี</small></div>
+      <div class="kpi ${cls(r.SavingHorizon)}"><span>Cost Saving สะสม ${esc(i.HorizonYears)} ปี</span><b>${Signed(r.SavingHorizon)}</b>
+        <small>${r.BreakEvenYear ? "เริ่มกำไรสะสมปีที่ " + r.BreakEvenYear : "ยังไม่คืนทุน"}</small></div>
+    </div>
+    <div class="card"><h3>เปรียบเทียบค่าใช้จ่ายต่อเดือน</h3>
+      <table class="tbl compact">
+        <thead><tr><th>รายการ</th><th class="r">แบบ GL</th><th class="r">แบบ CCDS</th></tr></thead>
+        <tbody>
+          <tr><td>น้ำยา A แบบแกลลอน</td><td class="r">${N0(r.GlCostMonthA)}</td><td class="r">${N0(r.CcdsOtherGlCost)}</td></tr>
+          <tr><td>น้ำยา B แบบแกลลอน</td><td class="r">${N0(r.GlCostMonthB)}</td><td class="r">-</td></tr>
+          <tr><td>ผงผสม</td><td class="r">-</td><td class="r">${N0(r.CcdsPowderCost)}</td></tr>
+          <tr><td>Leasing</td><td class="r">-</td><td class="r">${N0(r.LeasingPerMonth)}</td></tr>
+          <tr><td>Utility (น้ำ + ไฟ)</td><td class="r">-</td><td class="r">${N0(r.UtilityCost)}</td></tr>
+          <tr><td>หัก ขายแกลลอนคืน</td><td class="r neg">${N0(-r.GlSaleRevenue)}</td><td class="r neg">${N0(-r.CcdsGlSaleRevenue)}</td></tr>
+        </tbody>
+        <tfoot><tr><td>รวม / เดือน</td><td class="r">${N0(r.GlNetMonth)}</td><td class="r">${N0(r.CcdsNetMonth)}</td></tr></tfoot>
+      </table></div>
+    <div class="card"><h3>ผลตอบแทนระยะยาว</h3>
+      <ul class="facts">
+        <li><span>Cost Saving ช่วงผ่อน ${esc(i.InstallmentYears)} ปี</span><b class="${cls(r.SavingDuringLease)}">${Signed(r.SavingDuringLease, 2)}</b></li>
+        <li><span>หัก PM หลังหมด Warranty</span><b class="neg">${Signed(-r.PmDuringLease, 2)}</b></li>
+        <li><span>สุทธิเมื่อผ่อนครบ</span><b class="${cls(r.SavingDuringLeaseAfterPm)}">${Signed(r.SavingDuringLeaseAfterPm, 2)}</b></li>
+        <li><span>ปีที่ ${n(i.InstallmentYears) + 1}+ เดือนละ <small>(หัก PM แล้ว)</small></span><b class="${cls(r.SavingPerMonthAfterLease)}">${Signed(r.SavingPerMonthAfterLease, 2)}</b></li>
+        <li><span>ปีที่ ${n(i.InstallmentYears) + 1}+ ปีละ</span><b class="${cls(r.SavingPerYearAfterLease)}">${Signed(r.SavingPerYearAfterLease, 2)}</b></li>
+        <li class="total"><span>ครบ ${esc(i.HorizonYears)} ปี Cost Saving</span><b class="${cls(r.SavingHorizon)}">${Signed(r.SavingHorizon, 2)}</b></li>
+      </ul>
+      <div class="bars">${bars}</div></div>
+    ${scen}`;
+}
+
+// =====================================================================
+// รายงาน (หน้าตาเหมือน PDF)
+// =====================================================================
+function pageShell(r, subtitle, body, pageNo, pageCount) {
+  const i = r.Input;
+  const now = new Date().toLocaleString("th-TH", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  return `<section class="page">
+    <div class="ph">
+      <div class="ph-top">
+        <div>
+          <div class="t1">Feasibility Study for CCDS${String(i.ModelName || "").trim() ? ` <small>(${esc(i.ModelName)} Model)</small>` : ""}</div>
+          <div class="t2">${dash(i.SiteName)}</div>
+        </div>
+        <div class="meta">
+          <div>${N0(n(i.Machines))} เครื่อง • ${N0(n(i.TreatmentsPerMonth))} Treatment/เดือน</div>
+          <div>ข้อมูลเดือน ${dash(i.Month)} • ผ่อน ${esc(i.InstallmentYears)} ปี @ ${+n(i.InterestRatePercent).toFixed(2)}%</div>
+        </div>
+      </div>
+      <div class="ph-sub">${subtitle}</div>
+    </div>
+    <div class="content">${body}</div>
+    <div class="pf"><span>จัดทำเมื่อ ${now}</span><span>หน้า ${pageNo} / ${pageCount}</span></div>
+  </section>`;
+}
+
+const rKpi = (label, value, unit, note, kind) =>
+  `<div class="r-kpi ${kind}"><div class="l">${label}</div><div class="v">${value} <small>${unit}</small></div><div class="n">${note}</div></div>`;
+const sec = t => `<div class="sec">${t}</div>`;
+const td = (v, extra = "") => {
+  const neg = typeof v === "string" && v.startsWith("-") && v.length > 1;
+  return `<td class="${extra}${neg ? " neg" : ""}">${v}</td>`;
+};
+const powderNames = r => r.CcdsRows.filter(x => x.IsPowder).map(x => esc(x.Name)).join(" & ");
+const glNames = r => { const a = r.CcdsRows.filter(x => !x.IsPowder).map(x => esc(x.Name)); return a.length ? a.join(", ") : "น้ำยา A"; };
+
+function kv(items, total) {
+  return `<table class="rt"><tbody>${items.map(([a, b]) => `<tr>${td(a, "l")}${td(b)}</tr>`).join("")}
+    <tr class="tot">${td(total[0], "l")}${td(total[1])}</tr></tbody></table>`;
+}
+
+function compareTable(r) {
+  const rows = [
+    ["น้ำยา A แบบแกลลอน", r.GlCostMonthA, r.CcdsOtherGlCost],
+    ["น้ำยา B แบบแกลลอน", r.GlCostMonthB, null],
+    ["ผงผสม " + powderNames(r), null, r.CcdsPowderCost],
+    ["ค่าเช่าซื้อเครื่อง (Leasing)", null, r.LeasingPerMonth],
+    ["ค่าน้ำ (RO)", null, r.WaterCost],
+    ["ค่าไฟฟ้า", null, r.ElectricCost],
+    ["หัก ขายแกลลอนเปล่าคืน", -r.GlSaleRevenue, -r.CcdsGlSaleRevenue],
+  ];
+  return `<table class="rt">
+    <thead><tr><th class="l">รายการ</th><th>แบบ GL</th><th>แบบ CCDS</th></tr></thead>
+    <tbody>${rows.map(([l, g, c]) => `<tr>${td(l, "l")}${td(g === null ? "-" : N0(g))}${td(c === null ? "-" : N0(c))}</tr>`).join("")}
+      <tr class="tot">${td("รวมค่าใช้จ่าย/เดือน", "l")}${td(N0(r.GlNetMonth))}${td(N0(r.CcdsNetMonth))}</tr>
+      <tr>${td("ต้นทุนต่อ Treatment", "l")}${td(N2(r.GlCostPerTreatment))}${td(N2(r.CcdsCostPerTreatment))}</tr>
+    </tbody></table>
+    <div class="saving-row ${cls(r.SavingPerMonth)}"><span>Cost Saving / เดือน (GL − CCDS)</span><b class="${cls(r.SavingPerMonth)}">${Signed(r.SavingPerMonth)} บาท</b></div>`;
+}
+
+function compareBars(r) {
+  const gl = [["น้ำยา A (GL)", r.GlCostMonthA, "#3B6EA5"], ["น้ำยา B (GL)", r.GlCostMonthB, "#7FA7D1"]];
+  const cc = [["Leasing", r.LeasingPerMonth, "#0F766E"], ["ผงผสม", r.CcdsPowderCost, "#14B8A6"],
+              ["A แบบ GL", r.CcdsOtherGlCost, "#99D5CC"], ["Utility", r.UtilityCost, "#F59E0B"]];
+  const tGl = sum(gl, x => x[1]), tCc = sum(cc, x => x[1]);
+  const max = Math.max(tGl, tCc) || 1;
+  const stack = parts => `<div class="stack">${parts.filter(p => p[1] > 0).map(p => `<div style="width:${p[1] / max * 100}%;background:${p[2]}"></div>`).join("")}</div>`;
+  return `
+    <div class="stack-l">แบบ GL <span>&nbsp; ${N0(tGl)}</span></div>${stack(gl)}
+    <div class="stack-l" style="margin-top:3mm">แบบ CCDS <span>&nbsp; ${N0(tCc)}</span></div>${stack(cc)}
+    <div class="legend">${gl.concat(cc).map(p => `<span><i style="background:${p[2]}"></i>${p[0]}</span>`).join("")}</div>
+    <div class="legend">* ยอดก่อนหักรายได้ขายแกลลอนเปล่าคืน</div>`;
+}
+
+function longTermFacts(r) {
+  const i = r.Input, ny = n(i.InstallmentYears);
+  const items = [
+    [`Cost Saving ช่วงผ่อน ${ny} ปี`, r.SavingDuringLease, ""],
+    [`หัก ค่า PM หลังหมด Warranty ${esc(i.WarrantyYears)} ปี`, -r.PmDuringLease, `PM ปีละ ${N0(n(i.PmPerYear))}`],
+    [`สุทธิเมื่อผ่อนครบ ${ny} ปี`, r.SavingDuringLeaseAfterPm, ""],
+    [`ปีที่ ${ny + 1} เป็นต้นไป / เดือน`, r.SavingPerMonthAfterLease, "หัก PM ต่อเดือนแล้ว"],
+    [`ปีที่ ${ny + 1} เป็นต้นไป / ปี`, r.SavingPerYearAfterLease, ""],
+  ];
+  return `<div class="facts-r">${items.map(([l, v, note]) =>
+      `<div class="f"><div>${l}${note ? `<div class="note">${note}</div>` : ""}</div><b class="${cls(v)}">${Signed(v, 2)}</b></div>`).join("")}
+    <div class="tot ${cls(r.SavingHorizon)}"><span>ครบ ${esc(i.HorizonYears)} ปี Cost Saving</span><b class="${cls(r.SavingHorizon)}">${Signed(r.SavingHorizon, 2)}</b></div></div>`;
+}
+
+function yearChart(r) {
+  const H = 110;
+  const maxPos = Math.max(0, ...r.Years.map(y => y.Cumulative));
+  const maxNeg = Math.max(0, ...r.Years.map(y => -y.Cumulative));
+  const span = (maxPos + maxNeg) || 1;
+  const hPos = maxPos / span * H, hNeg = H - hPos;
+  const ny = n(r.Input.InstallmentYears);
+  const cols = r.Years.map(y => {
+    const bar = Math.max(Math.abs(y.Cumulative) / span * H, 0.8);
+    const lease = y.Year <= ny;
+    const color = y.Cumulative >= 0 ? (lease ? "#4CB97A" : "#22A05A") : (lease ? "#EF7B7B" : "#E05252");
+    return `<div class="yc">
+      ${hPos > 0.5 ? `<div class="zone p" style="height:${hPos}px">${y.Cumulative > 0 ? `<div style="height:${bar}px;background:${color}"></div>` : ""}</div>` : ""}
+      <div class="zero"></div>
+      ${hNeg > 0.5 ? `<div class="zone n" style="height:${hNeg}px">${y.Cumulative < 0 ? `<div style="height:${bar}px;background:${color}"></div>` : ""}</div>` : ""}
+      <div class="lab">ปี ${y.Year}</div><div class="val ${cls(y.Cumulative)}">${short(y.Cumulative)}</div></div>`;
+  }).join("");
+  return `<div class="ychart"><div class="cols-y">${cols}</div>
+    <div class="cap">สีอ่อน = ช่วงผ่อนชำระ, สีเข้ม = หลังผ่อนครบ • M = ล้านบาท, K = พันบาท</div></div>`;
+}
+
+function yearTable(r) {
+  const line = (label, f, bold = false) => `<tr${bold ? ' style="font-weight:700"' : ""}>${td(label, "l")}${r.Years.map(y => {
+    const v = f(y); return td(Math.abs(v) < 0.5 ? "-" : N0(v));
+  }).join("")}</tr>`;
+  return `<table class="rt small">
+    <thead><tr><th class="l">บาท</th>${r.Years.map(y => `<th>ปี ${y.Year}</th>`).join("")}</tr></thead>
+    <tbody>
+      ${line("Saving ค่าใช้จ่าย", y => y.Saving)}
+      ${line("หัก ค่า PM", y => -y.Pm)}
+      ${line("ไม่ต้องจ่าย Leasing", y => y.LeasingFreed)}
+      ${line("สุทธิรายปี", y => y.Net)}
+      ${line("สะสม", y => y.Cumulative, true)}
+    </tbody></table>`;
+}
+
+function glTable(r) {
+  const i = r.Input;
+  const blank = "<td></td>".repeat(5);
+  return `<table class="rt">
+    <thead><tr><th class="l">สูตร</th><th>แกลลอน</th><th>Treatment</th><th>GL / Tx</th><th>ลิตร / Tx</th><th>ราคา / GL</th><th>บาท / Tx</th><th>บาท / เดือน</th></tr></thead>
+    <tbody>
+      ${r.ARows.map(a => `<tr>${td(esc(a.Name), "l")}${td(N0(a.Gallons))}${td(N0(a.Treatments))}${blank}</tr>`).join("")}
+      <tr class="sub">${td("รวม A", "l")}${td(N0(r.TotalGallonsA))}${td(N0(r.Treatments))}${td(N2(r.AvgGallonPerTreatA))}${td(N2(r.LiterPerTreatA))}${td(N2(n(i.PricePerGallonA)))}${td(N2(r.GlCostPerTreatA))}${td(N0(r.GlCostMonthA))}</tr>
+      <tr class="sub">${td("B", "l")}${td(N0(r.GallonsB))}${td(N0(r.Treatments))}${td(N2(r.AvgGallonPerTreatB))}${td(N2(r.LiterPerTreatB))}${td(N2(n(i.PricePerGallonB)))}${td(N2(r.GlCostPerTreatB))}${td(N0(r.GlCostMonthB))}</tr>
+      <tr class="tot">${td("รวม", "l")}${td(N0(r.TotalGallons))}<td></td><td></td><td></td><td></td>${td(N2(r.GlCostPerTreatA + r.GlCostPerTreatB))}${td(N0(r.GlCostMonth))}</tr>
+    </tbody></table>`;
+}
+
+function ccdsTable(r) {
+  return `<table class="rt">
+    <thead><tr><th class="l">สูตร</th><th class="l">ใช้</th><th>แกลลอน</th><th>Treatment</th><th>ราคา / GL</th><th>บาท / Tx</th><th>บาท / เดือน</th><th>ลิตรผสม</th></tr></thead>
+    <tbody>
+      ${r.CcdsRows.map(x => `<tr>${td(esc(x.Name), "l")}<td class="l"><span class="tag ${x.IsPowder ? "powder" : "gl"}">${x.IsPowder ? "ผงผสม" : "แกลลอน"}</span></td>
+        ${td(x.IsPowder ? "-" : N0(x.Gallons))}${td(N0(x.Treatments))}${td(x.IsPowder ? "-" : N2(x.PricePerGallon))}${td(N2(x.CostPerTreat))}${td(N0(x.CostPerMonth))}${td(x.IsPowder ? N0(x.MixedLiters) : "-")}</tr>`).join("")}
+      <tr class="tot">${td("รวม", "l")}<td></td>${td(N0(r.CcdsOtherGallons))}${td(N0(r.Treatments))}<td></td><td></td>${td(N0(r.CcdsPowderCost + r.CcdsOtherGlCost))}${td(N0(r.MixedLitersTotal))}</tr>
+    </tbody></table>`;
+}
+
+function utilityTables(r) {
+  const i = r.Input;
+  return `<table class="rt">
+      <thead><tr><th class="l">Utility</th><th>บาท / หน่วย</th><th>ใช้ / เดือน</th><th>บาท / เดือน</th></tr></thead>
+      <tbody>
+        <tr>${td("ค่าน้ำ (m³)", "l")}${td(N2(n(i.WaterRate)))}${td(N1(r.WaterM3))}${td(N0(r.WaterCost))}</tr>
+        <tr>${td("ค่าไฟฟ้า (kWh)", "l")}${td(N2(n(i.ElectricRate)))}${td(N0(r.ElectricKwh))}${td(N0(r.ElectricCost))}</tr>
+        <tr class="tot"><td class="l" colspan="3">รวม Utility / เดือน</td>${td(N0(r.UtilityCost))}</tr>
+      </tbody></table>
+    <div class="foot-note" style="font-size:7pt">น้ำ = ลิตรผสม ${N0(r.MixedLitersTotal)} × ${N2(n(i.WaterM3Per1000Liter))} m³ / 1,000 ลิตร</div>
+    <table class="rt small" style="margin-top:1.5mm">
+      <thead><tr><th class="l">อุปกรณ์</th><th>kW</th><th>ชม./รอบ</th><th>จำนวน</th><th>รอบ/วัน</th><th>kWh/วัน</th><th>kWh/เดือน</th></tr></thead>
+      <tbody>${r.EquipmentRows.map(e => `<tr>${td(esc(e.Name), "l")}${td(N2(e.Kw))}${td(N1(e.Hours))}${td(N0(e.Qty))}${td(N0(e.RunsPerDay))}${td(N2(e.KwhPerDay))}${td(N1(e.KwhPerMonth))}</tr>`).join("")}
+        <tr class="tot"><td class="l" colspan="6">รวม kWh / เดือน (${Math.max(Math.trunc(n(i.DaysPerMonth)), 1)} วัน)</td>${td(N0(r.ElectricKwh))}</tr>
+      </tbody></table>`;
+}
+
+function summaryPage(r, s) {
+  const i = r.Input, ny = n(i.InstallmentYears);
+  return `
+    <div class="r-kpis">
+      ${rKpi("ค่าใช้จ่ายแบบ GL (ปัจจุบัน)", N0(r.GlNetMonth), "บาท/เดือน", `${N2(r.GlCostPerTreatment)} บาท/Treatment`, "navy")}
+      ${rKpi("ค่าใช้จ่ายแบบ CCDS", N0(r.CcdsNetMonth), "บาท/เดือน", `${N2(r.CcdsCostPerTreatment)} บาท/Treatment`, "teal")}
+      ${rKpi("Cost Saving ช่วงผ่อน", Signed(r.SavingPerMonth), "บาท/เดือน", `${Pct(r.SavingPerMonth, r.GlNetMonth)} ของค่าใช้จ่ายเดิม`, cls(r.SavingPerMonth))}
+      ${rKpi(`Cost Saving สะสม ${esc(i.HorizonYears)} ปี`, Signed(r.SavingHorizon), "บาท",
+             r.BreakEvenYear ? `คืนทุน/เริ่มกำไรสะสมปีที่ ${r.BreakEvenYear}` : "ยังไม่คืนทุนในช่วงที่วิเคราะห์", cls(r.SavingHorizon))}
+    </div>
+    <div class="verdict ${cls(r.SavingHorizon)}">
+      <div class="h">ข้อสรุป</div>
+      <div style="color:var(--text)">ช่วงผ่อนชำระ ${ny} ปีแรก ระบบ CCDS <b>${r.SavingPerMonth >= 0 ? "ประหยัดกว่า" : "มีค่าใช้จ่ายสูงกว่า"}</b>
+        แบบ GL เดือนละ ${N0(Math.abs(r.SavingPerMonth))} บาท • เมื่อผ่อนครบจะเริ่ม${r.SavingPerMonthAfterLease >= 0 ? "ประหยัด" : "ขาดทุน"}ปีที่ ${ny + 1}
+        <b>เดือนละ ${N2(Math.abs(r.SavingPerMonthAfterLease))} บาท</b> (หักค่า PM แล้ว) •
+        ครบ ${esc(i.HorizonYears)} ปี Cost Saving สุทธิ <b class="${cls(r.SavingHorizon)}">${Signed(r.SavingHorizon, 2)} บาท</b></div>
+    </div>
+    <div class="cols" style="grid-template-columns: 11fr 9fr">
+      <div>${sec("เปรียบเทียบค่าใช้จ่ายต่อเดือน")}${compareTable(r)}</div>
+      <div>${sec("สัดส่วนค่าใช้จ่าย (บาท/เดือน)")}${compareBars(r)}</div>
+    </div>
+    <div>
+      ${sec(`ผลตอบแทนระยะยาว ${esc(i.HorizonYears)} ปี (Cost Saving สะสม)`)}
+      <div class="cols" style="grid-template-columns: 9fr 11fr">${longTermFacts(r)}${yearChart(r)}</div>
+      <div style="margin-top:2mm">${yearTable(r)}</div>
+    </div>
+    ${s ? `<div class="note-box"><b>Scenario ปรับ Factor มาตรฐาน</b>
+      (A ${n(i.ScenarioFactorA).toFixed(2)} / B ${n(i.ScenarioFactorB).toFixed(2)} แกลลอนต่อ Treatment):
+      Cost Saving ${Signed(s.SavingPerMonth)} บาท/เดือน,
+      <b class="${cls(s.SavingHorizon)}">สะสม ${esc(i.HorizonYears)} ปี ${Signed(s.SavingHorizon)} บาท</b>
+      <span class="muted"> — ดูรายละเอียดหน้า 3</span></div>` : ""}`;
+}
+
+function detailPage(r) {
+  const i = r.Input;
+  const pa = r.PowderA, pb = r.PowderB;
+  return `
+    <div>${sec(`1. ปริมาณน้ำยาและค่าใช้จ่ายแบบแกลลอน (GL) — ${N0(r.Treatments)} Treatment/เดือน`)}${glTable(r)}
+      <div class="foot-note">ขายแกลลอนเปล่าคืน ${N0(r.TotalGallons)} GL × ${N2(n(i.GallonSalePrice))} = ${N0(r.GlSaleRevenue)} บาท →
+        <b>ค่าใช้จ่ายสุทธิแบบ GL ${N0(r.GlNetMonth)} บาท/เดือน</b></div></div>
+    <div class="cols" style="grid-template-columns: 1fr 1fr">
+      <div>${sec(`2. ค่าเช่าซื้อเครื่อง CCDS (${N0(n(i.Machines))} เครื่อง)`)}
+        ${kv([["ราคาเครื่อง", N0(n(i.LeasingPrice))], ["ดอกเบี้ย (Flat) / ปี", `${+n(i.InterestRatePercent).toFixed(2)}%`],
+              ["จำนวนปีผ่อน", `${esc(i.InstallmentYears)} ปี (${n(i.InstallmentYears) * 12} งวด)`],
+              ["ดอกเบี้ยรวม", N0(r.LeasingTotalInterest)], ["ยอดรวมทั้งสิ้น", N0(r.LeasingTotal)]],
+             ["ค่างวด / เดือน", N2(r.LeasingPerMonth)])}</div>
+      <div>${sec("3. ต้นทุนผงผสมต่อ Treatment")}
+        <table class="rt"><thead><tr><th class="l">รายการ</th><th>ผง A</th><th>ผง B</th></tr></thead><tbody>
+          <tr>${td("ราคา / กล่อง", "l")}${td(N2(pa.CostPerBox))}${td(N2(pb.CostPerBox))}</tr>
+          <tr>${td("ผสมได้ (ครั้ง/กล่อง)", "l")}${td(N0(pa.MixPerBox))}${td(N0(pb.MixPerBox))}</tr>
+          <tr>${td("ลิตร / ครั้งผสม", "l")}${td(N2(pa.MixLiter))}${td(N2(pb.MixLiter))}</tr>
+          <tr>${td("ลิตร / กล่อง", "l")}${td(N0(pa.LiterPerBox))}${td(N0(pb.LiterPerBox))}</tr>
+          <tr>${td("ลิตร / Treatment", "l")}${td(N2(r.LiterPerTreatA))}${td(N2(r.LiterPerTreatB))}</tr>
+          <tr>${td("Treatment / กล่อง", "l")}${td(N2(pa.TreatmentsPerBox))}${td(N2(pb.TreatmentsPerBox))}</tr>
+          <tr class="tot">${td("ต้นทุน / Treatment", "l")}${td(N2(pa.CostPerTreat))}${td(N2(pb.CostPerTreat))}</tr>
+        </tbody></table></div>
+    </div>
+    <div>${sec("4. ค่าน้ำยาเมื่อใช้ระบบ CCDS (ผงผสม + สูตรที่ยังใช้แกลลอน)")}${ccdsTable(r)}</div>
+    <div class="cols" style="grid-template-columns: 11fr 8fr">
+      <div>${sec("5. ค่า Utility")}${utilityTables(r)}</div>
+      <div>${sec(`6. ค่าใช้จ่ายระบบ CCDS (${N0(r.Treatments)} Tx/เดือน)`)}
+        ${kv([["Leasing", N0(r.LeasingPerMonth)], ["ผงผสม " + powderNames(r), N0(r.CcdsPowderCost)],
+              [glNames(r) + " แบบ GL", N0(r.CcdsOtherGlCost)], ["Utility (น้ำ + ไฟ)", N0(r.UtilityCost)],
+              ["หัก ขายแกลลอนคืน", N0(-r.CcdsGlSaleRevenue)]], ["รวม / เดือน", N0(r.CcdsNetMonth)])}</div>
+    </div>`;
+}
+
+function scenarioPage(a, s) {
+  const i = a.Input, ny = n(i.InstallmentYears);
+  const fa = n(i.ScenarioFactorA).toFixed(2), fb = n(i.ScenarioFactorB).toFixed(2);
+  const lines = [
+    ["แกลลอน A / เดือน", a.TotalGallonsA, s.TotalGallonsA, 0],
+    ["แกลลอน B / เดือน", a.GallonsB, s.GallonsB, 0],
+    ["แกลลอน A / Treatment", a.AvgGallonPerTreatA, s.AvgGallonPerTreatA, 2],
+    ["แกลลอน B / Treatment", a.AvgGallonPerTreatB, s.AvgGallonPerTreatB, 2],
+    ["ต้นทุนผง A / Treatment", a.PowderA.CostPerTreat, s.PowderA.CostPerTreat, 2],
+    ["ต้นทุนผง B / Treatment", a.PowderB.CostPerTreat, s.PowderB.CostPerTreat, 2],
+    ["ค่าใช้จ่ายแบบ GL / เดือน", a.GlNetMonth, s.GlNetMonth, 0],
+    ["&nbsp;&nbsp;• ผงผสม", a.CcdsPowderCost, s.CcdsPowderCost, 0],
+    ["&nbsp;&nbsp;• น้ำยา A ที่ยังใช้แกลลอน", a.CcdsOtherGlCost, s.CcdsOtherGlCost, 0],
+    ["&nbsp;&nbsp;• Utility", a.UtilityCost, s.UtilityCost, 0],
+    ["ค่าใช้จ่ายแบบ CCDS / เดือน", a.CcdsNetMonth, s.CcdsNetMonth, 0],
+    ["Cost Saving / เดือน (ช่วงผ่อน)", a.SavingPerMonth, s.SavingPerMonth, 0],
+    [`Cost Saving / เดือน (ปีที่ ${ny + 1}+)`, a.SavingPerMonthAfterLease, s.SavingPerMonthAfterLease, 0],
+    [`สุทธิเมื่อผ่อนครบ ${ny} ปี`, a.SavingDuringLeaseAfterPm, s.SavingDuringLeaseAfterPm, 0],
+  ];
+  const f = (v, dp) => (dp ? N2(v) : N0(v));
+  return `
+    <div class="note-box"><b>แนวคิด:</b> ปรับปริมาณแกลลอนให้เป็นค่ามาตรฐาน — น้ำยา A ${fa} แกลลอน/Treatment, น้ำยา B ${fb} แกลลอน/Treatment
+      (จำนวน Treatment ต่อสูตรเท่าเดิม) แล้วคำนวณค่าใช้จ่ายทั้งแบบ GL และ CCDS ใหม่ เพื่อดูผลเมื่อการใช้น้ำยาเป็นไปตามมาตรฐาน</div>
+    <div class="r-kpis">
+      ${rKpi("แบบ GL (Scenario)", N0(s.GlNetMonth), "บาท/เดือน", `จริง ${N0(a.GlNetMonth)}`, "navy")}
+      ${rKpi("แบบ CCDS (Scenario)", N0(s.CcdsNetMonth), "บาท/เดือน", `จริง ${N0(a.CcdsNetMonth)}`, "teal")}
+      ${rKpi("Cost Saving / เดือน", Signed(s.SavingPerMonth), "บาท", `จริง ${Signed(a.SavingPerMonth)}`, cls(s.SavingPerMonth))}
+      ${rKpi(`สะสม ${esc(i.HorizonYears)} ปี`, Signed(s.SavingHorizon), "บาท", `จริง ${Signed(a.SavingHorizon)}`, cls(s.SavingHorizon))}
+    </div>
+    <div>${sec("เปรียบเทียบ ข้อมูลจริง vs Scenario")}
+      <table class="rt"><thead><tr><th class="l">รายการ</th><th>ข้อมูลจริง</th><th>Scenario</th><th>ผลต่าง</th></tr></thead><tbody>
+        ${lines.map(([l, x, y, dp]) => `<tr>${td(l, "l")}${td(f(x, dp))}${td(f(y, dp))}${td(Signed(y - x, dp))}</tr>`).join("")}
+        <tr class="tot">${td(`Cost Saving สะสม ${esc(i.HorizonYears)} ปี`, "l")}${td(Signed(a.SavingHorizon))}${td(Signed(s.SavingHorizon))}${td(Signed(s.SavingHorizon - a.SavingHorizon))}</tr>
+      </tbody></table></div>
+    <div>${sec("ปริมาณน้ำยาแบบ GL (Scenario)")}${glTable(s)}</div>
+    <div>${sec("ค่าน้ำยาเมื่อใช้ระบบ CCDS (Scenario)")}${ccdsTable(s)}</div>`;
+}
+
+function renderReport(r, s) {
+  const i = r.Input;
+  const count = s ? 3 : 2;
+  let html = pageShell(r, "สรุปผลการศึกษาความเป็นไปได้", summaryPage(r, s), 1, count)
+           + pageShell(r, "รายละเอียดการคำนวณ", detailPage(r), 2, count);
+  if (s) html += pageShell(r, `Scenario: ปรับ Factor เป็นค่ามาตรฐาน (A = ${n(i.ScenarioFactorA).toFixed(2)}, B = ${n(i.ScenarioFactorB).toFixed(2)})`,
+                           scenarioPage(r, s), 3, count);
+  document.getElementById("report").innerHTML = html;
+}
+
+// =====================================================================
+// ควบคุมหน้าจอ
+// =====================================================================
+function compute() {
+  const r = calculate(input);
+  const s = input.ScenarioEnabled ? calculate(buildScenario(input)) : null;
+  return [r, s];
+}
+function refresh() {
+  const [r, s] = compute();
+  if (view === "edit") { updateFormCalcs(r); renderResults(r, s); }
+  else renderReport(r, s);
+  const base = ["CCDS", input.ModelName, input.Month].filter(x => String(x || "").trim()).join(" ");
+  document.title = base === "CCDS" ? "CCDS Feasibility Simulator" : `${base} — Feasibility Study`;
+}
+function setView(v) {
+  view = v;
+  document.getElementById("edit-view").hidden = v !== "edit";
+  document.getElementById("report-view").hidden = v !== "report";
+  document.querySelectorAll('[data-action="view"]').forEach(b => b.classList.toggle("on", b.dataset.view === v));
+  if (v === "edit") renderForm();
+  refresh();
+  window.scrollTo(0, 0);
+}
+function replaceInput(x, note) { input = normalize(x); persist(); message(note); setView(view); }
+
+function setPath(obj, path, value) {
+  const keys = path.split(".");
+  let o = obj;
+  for (let k = 0; k < keys.length - 1; k++) o = o[keys[k]];
+  o[keys[keys.length - 1]] = value;
+}
+
+document.getElementById("form").addEventListener("input", e => {
+  const el = e.target;
+  const path = el.dataset.path;
+  if (!path) return;
+  let v;
+  if (el.type === "checkbox") v = el.checked;
+  else if (el.type === "number") v = el.value === "" ? (path.endsWith("RunsPerDayOverride") ? null : 0) : Number(el.value);
+  else v = el.value;
+  setPath(input, path, v);
+  persist();
+  if (path === "ScenarioEnabled") renderForm();
+  refresh();
+});
+
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-action]");
+  if (!b) return;
+  const k = Number(b.dataset.k);
+  switch (b.dataset.action) {
+    case "view": setView(b.dataset.view); break;
+    case "preset": replaceInput(PRESETS[b.dataset.preset](), ""); break;
+    case "powder": input.ARecipes[k].UsePowder = b.dataset.v === "1"; persist(); renderForm(); refresh(); break;
+    case "remove": input.ARecipes.splice(k, 1); persist(); renderForm(); refresh(); break;
+    case "add": input.ARecipes.push({ Name: "A" + (input.ARecipes.length + 1), Gallons: 0, UsePowder: false }); persist(); renderForm(); refresh(); break;
+    case "save": {
+      const blob = new Blob([JSON.stringify(input, null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = ["CCDS", input.ModelName, input.Month].filter(x => String(x || "").trim()).join("_").replace(/[\\/:*?"<>|]/g, "_") + ".json";
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      break;
+    }
+    case "print": if (view !== "report") setView("report"); setTimeout(() => window.print(), 300); break;
+  }
+});
+
+document.getElementById("file-in").addEventListener("change", async e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  try { replaceInput(JSON.parse(await f.text()), `โหลดข้อมูลจาก ${f.name} แล้ว`); }
+  catch (err) { message("อ่านไฟล์ไม่สำเร็จ: " + err.message); }
+  e.target.value = "";
+});
+
+setView(view);
+</script>
+</body>
+</html>

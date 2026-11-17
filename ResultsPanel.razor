@@ -1,0 +1,77 @@
+@* แผงผลลัพธ์ด้านขวาของหน้าแก้ไขโครงการ *@
+@{
+    var r = Result;
+    var i = r.Input;
+    var maxAbs = Math.Max(1m, r.Years.Max(y => Math.Abs(y.Cumulative)));
+}
+
+<div class="kpis">
+    <div class="kpi navy"><span>ค่าใช้จ่ายแบบ GL</span><b>@N0(r.GlNetMonth)</b><small>บาท/เดือน • @N2(r.GlCostPerTreatment)/Tx</small></div>
+    <div class="kpi teal"><span>ค่าใช้จ่ายแบบ CCDS</span><b>@N0(r.CcdsNetMonth)</b><small>บาท/เดือน • @N2(r.CcdsCostPerTreatment)/Tx</small></div>
+    <div class="kpi @Cls(r.SavingPerMonth)"><span>Cost Saving / เดือน</span><b>@Signed(r.SavingPerMonth)</b><small>ช่วงผ่อน @i.InstallmentYears ปี</small></div>
+    <div class="kpi @Cls(r.SavingHorizon)"><span>Cost Saving สะสม @i.HorizonYears ปี</span><b>@Signed(r.SavingHorizon)</b>
+        <small>@(r.BreakEvenYear is int be ? $"เริ่มกำไรสะสมปีที่ {be}" : "ยังไม่คืนทุน")</small></div>
+</div>
+
+<div class="card">
+    <h3>เปรียบเทียบค่าใช้จ่ายต่อเดือน</h3>
+    <table class="tbl compact">
+        <thead><tr><th>รายการ</th><th class="r">แบบ GL</th><th class="r">แบบ CCDS</th></tr></thead>
+        <tbody>
+            <tr><td>น้ำยา A แบบแกลลอน</td><td class="r">@N0(r.GlCostMonthA)</td><td class="r">@N0(r.CcdsOtherGlCost)</td></tr>
+            <tr><td>น้ำยา B แบบแกลลอน</td><td class="r">@N0(r.GlCostMonthB)</td><td class="r">-</td></tr>
+            <tr><td>ผงผสม</td><td class="r">-</td><td class="r">@N0(r.CcdsPowderCost)</td></tr>
+            <tr><td>Leasing</td><td class="r">-</td><td class="r">@N0(r.LeasingPerMonth)</td></tr>
+            <tr><td>Utility (น้ำ + ไฟ)</td><td class="r">-</td><td class="r">@N0(r.UtilityCost)</td></tr>
+            <tr><td>หัก ขายแกลลอนคืน</td><td class="r neg">@N0(-r.GlSaleRevenue)</td><td class="r neg">@N0(-r.CcdsGlSaleRevenue)</td></tr>
+        </tbody>
+        <tfoot><tr><td>รวม / เดือน</td><td class="r">@N0(r.GlNetMonth)</td><td class="r">@N0(r.CcdsNetMonth)</td></tr></tfoot>
+    </table>
+</div>
+
+<div class="card">
+    <h3>ผลตอบแทนระยะยาว</h3>
+    <ul class="facts">
+        <li><span>Cost Saving ช่วงผ่อน @i.InstallmentYears ปี</span><b class="@Cls(r.SavingDuringLease)">@Signed(r.SavingDuringLease, 2)</b></li>
+        <li><span>หัก PM หลังหมด Warranty</span><b class="neg">@Signed(-r.PmDuringLease, 2)</b></li>
+        <li><span>สุทธิเมื่อผ่อนครบ</span><b class="@Cls(r.SavingDuringLeaseAfterPm)">@Signed(r.SavingDuringLeaseAfterPm, 2)</b></li>
+        <li><span>ปีที่ @(i.InstallmentYears + 1)+ เดือนละ <small>(หัก PM แล้ว)</small></span><b class="@Cls(r.SavingPerMonthAfterLease)">@Signed(r.SavingPerMonthAfterLease, 2)</b></li>
+        <li><span>ปีที่ @(i.InstallmentYears + 1)+ ปีละ</span><b class="@Cls(r.SavingPerYearAfterLease)">@Signed(r.SavingPerYearAfterLease, 2)</b></li>
+        <li class="total"><span>ครบ @i.HorizonYears ปี Cost Saving</span><b class="@Cls(r.SavingHorizon)">@Signed(r.SavingHorizon, 2)</b></li>
+    </ul>
+    <div class="bars">
+        @foreach (var y in r.Years)
+        {
+            var pct = (Math.Abs(y.Cumulative) / maxAbs * 50m).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+            <div class="bar-row">
+                <span class="yr">ปี @y.Year</span>
+                <div class="track">
+                    <div class="fill @Cls(y.Cumulative) @(y.Year <= i.InstallmentYears ? "lease" : "")"
+                         style="@(y.Cumulative >= 0 ? $"left:50%;width:{pct}%" : $"right:50%;width:{pct}%")"></div>
+                </div>
+                <span class="val @Cls(y.Cumulative)">@N0(y.Cumulative)</span>
+            </div>
+        }
+    </div>
+</div>
+
+@if (Scenario is { } s)
+{
+    <div class="card">
+        <h3>Scenario: Factor A @i.ScenarioFactorA.ToString("0.00") / B @i.ScenarioFactorB.ToString("0.00")</h3>
+        <table class="tbl compact">
+            <thead><tr><th></th><th class="r">ข้อมูลจริง</th><th class="r">Scenario</th></tr></thead>
+            <tbody>
+                <tr><td>ค่าใช้จ่ายแบบ GL</td><td class="r">@N0(r.GlNetMonth)</td><td class="r">@N0(s.GlNetMonth)</td></tr>
+                <tr><td>ค่าใช้จ่ายแบบ CCDS</td><td class="r">@N0(r.CcdsNetMonth)</td><td class="r">@N0(s.CcdsNetMonth)</td></tr>
+                <tr><td>Cost Saving / เดือน</td><td class="r @Cls(r.SavingPerMonth)">@Signed(r.SavingPerMonth)</td><td class="r @Cls(s.SavingPerMonth)">@Signed(s.SavingPerMonth)</td></tr>
+            </tbody>
+            <tfoot><tr><td>สะสม @i.HorizonYears ปี</td><td class="r @Cls(r.SavingHorizon)">@Signed(r.SavingHorizon)</td><td class="r @Cls(s.SavingHorizon)">@Signed(s.SavingHorizon)</td></tr></tfoot>
+        </table>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public CcdsResult Result { get; set; } = default!;
+    [Parameter] public CcdsResult? Scenario { get; set; }
+}

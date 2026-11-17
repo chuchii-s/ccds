@@ -1,0 +1,125 @@
+@page "/"
+@inject ProjectStore Store
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<PageTitle>โครงการ — CCDS Simulator</PageTitle>
+
+<div class="page-wrap">
+    <div class="page-head">
+        <div>
+            <h1>โครงการทั้งหมด</h1>
+            <p class="muted">ข้อมูลเก็บในเบราว์เซอร์นี้เท่านั้น (ไม่ส่งขึ้น server) — ใช้ "สำรองข้อมูล" เพื่อย้ายไปเครื่องอื่น</p>
+        </div>
+        <div class="head-actions">
+            <button class="btn primary" @onclick="NewBlank">+ โครงการใหม่</button>
+            <button class="btn" @onclick="() => NewSample(1)">+ ตัวอย่าง 1</button>
+            <button class="btn" @onclick="() => NewSample(2)">+ ตัวอย่าง 2</button>
+            <label class="btn file">นำเข้าไฟล์ .json<InputFile OnChange="Import" accept=".json,application/json" /></label>
+            <button class="btn" @onclick="Backup" disabled="@(projects.Count == 0)">สำรองข้อมูลทั้งหมด</button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(message)) { <div class="msg">@message</div> }
+    @if (!Store.StorageAvailable) { <div class="msg warn">เบราว์เซอร์นี้ไม่อนุญาตให้บันทึกข้อมูล (อาจเป็นโหมดไม่ระบุตัวตน) ข้อมูลจะหายเมื่อปิดหน้าเว็บ</div> }
+
+    @if (loading)
+    {
+        <div class="card empty">กำลังโหลด…</div>
+    }
+    else if (projects.Count == 0)
+    {
+        <div class="card empty">
+            <h2>ยังไม่มีโครงการ</h2>
+            <p>เริ่มจาก <b>+ โครงการใหม่</b> หรือลองดู <b>ตัวอย่าง 1</b> ก่อนก็ได้</p>
+        </div>
+    }
+    else
+    {
+        <div class="card">
+            <table class="tbl list">
+                <thead>
+                    <tr>
+                        <th>โครงการ</th><th class="r">เครื่อง</th><th class="r">Tx/เดือน</th>
+                        <th class="r">Saving / เดือน</th><th class="r">สะสม (ปี)</th><th>แก้ไขล่าสุด</th><th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in projects)
+                    {
+                        var r = CcdsCalculator.Calculate(p.Input);
+                        <tr>
+                            <td>
+                                <a class="pname" href="project/@p.Id">@p.DisplayName</a>
+                                <div class="muted small">@Dash(p.Input.ModelName) • ข้อมูลเดือน @Dash(p.Input.Month)</div>
+                            </td>
+                            <td class="r">@N0(p.Input.Machines)</td>
+                            <td class="r">@N0(p.Input.TreatmentsPerMonth)</td>
+                            <td class="r @Cls(r.SavingPerMonth)"><b>@Signed(r.SavingPerMonth)</b></td>
+                            <td class="r @Cls(r.SavingHorizon)">@Signed(r.SavingHorizon) <span class="muted small">(@p.Input.HorizonYears)</span></td>
+                            <td class="muted small">@p.UpdatedAt.ToString("d MMM yy HH:mm", Th)</td>
+                            <td class="r nowrap">
+                                <a class="act" href="project/@p.Id">แก้ไข</a>
+                                <a class="act" href="project/@p.Id/report">รายงาน</a>
+                                <button class="act" @onclick="() => Duplicate(p)">สำเนา</button>
+                                <button class="act del" @onclick="() => Delete(p)">ลบ</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@code {
+    private static readonly System.Globalization.CultureInfo Th = System.Globalization.CultureInfo.GetCultureInfo("th-TH");
+    private List<Project> projects = new();
+    private bool loading = true;
+    private string? message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        projects = await Store.GetAllAsync();
+        loading = false;
+    }
+
+    private async Task NewBlank()
+    {
+        var p = await Store.CreateAsync(Presets.NewFrom(await Store.GetDefaultsAsync()));
+        Nav.NavigateTo($"project/{p.Id}");
+    }
+
+    private async Task NewSample(int n)
+    {
+        var d = await Store.GetDefaultsAsync();
+        var p = await Store.CreateAsync(n == 1 ? Presets.Sample1(d) : Presets.Sample2(d));
+        Nav.NavigateTo($"project/{p.Id}");
+    }
+
+    private async Task Duplicate(Project p) { await Store.DuplicateAsync(p); message = $"ทำสำเนา \"{p.DisplayName}\" แล้ว"; }
+
+    private async Task Delete(Project p)
+    {
+        if (!await JS.InvokeAsync<bool>("ccds.confirm", $"ลบโครงการ \"{p.DisplayName}\" ?")) return;
+        await Store.DeleteAsync(p.Id);
+        message = $"ลบ \"{p.DisplayName}\" แล้ว";
+    }
+
+    private async Task Backup() =>
+        await JS.InvokeVoidAsync("ccds.download", $"CCDS_backup_{DateTime.Now:yyyyMMdd}.json", await Store.ExportAllAsync(), "application/json");
+
+    private async Task Import(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            using var reader = new StreamReader(e.File.OpenReadStream(5_000_000));
+            int n = await Store.ImportAsync(await reader.ReadToEndAsync());
+            message = $"นำเข้า {n} โครงการจาก {e.File.Name} แล้ว";
+        }
+        catch (Exception ex)
+        {
+            message = "อ่านไฟล์ไม่สำเร็จ: " + ex.Message;
+        }
+    }
+}

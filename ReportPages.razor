@@ -1,0 +1,341 @@
+@* รายงาน A4 (สั่งพิมพ์ / บันทึกเป็น PDF ผ่านเบราว์เซอร์) — หน้าตาเดียวกับรายงาน PDF เดิม *@
+@{
+    var r = Result;
+    var i = r.Input;
+    int count = Scenario is null ? 2 : 3;
+}
+
+@Page(1, count, "สรุปผลการศึกษาความเป็นไปได้", SummaryBody)
+@Page(2, count, "รายละเอียดการคำนวณ", DetailBody)
+@if (Scenario is not null)
+{
+    @Page(3, count, $"Scenario: ปรับ Factor เป็นค่ามาตรฐาน (A = {i.ScenarioFactorA:0.00}, B = {i.ScenarioFactorB:0.00})", ScenarioBody)
+}
+
+@code {
+    [Parameter, EditorRequired] public CcdsResult Result { get; set; } = default!;
+    [Parameter] public CcdsResult? Scenario { get; set; }
+
+    private CcdsInput I => Result.Input;
+    private string Now => DateTime.Now.ToString("d MMM yyyy HH:mm", System.Globalization.CultureInfo.GetCultureInfo("th-TH"));
+
+    // ---------------- โครงหน้า ----------------
+    private RenderFragment Page(int no, int count, string subtitle, RenderFragment body) =>
+        @<section class="page">
+            <div class="ph">
+                <div class="ph-top">
+                    <div>
+                        <div class="t1">Feasibility Study for CCDS @if (!string.IsNullOrWhiteSpace(I.ModelName)) { <small>(@I.ModelName Model)</small> }</div>
+                        <div class="t2">@Dash(I.SiteName)</div>
+                    </div>
+                    <div class="meta">
+                        <div>@N0(I.Machines) เครื่อง • @N0(I.TreatmentsPerMonth) Treatment/เดือน</div>
+                        <div>ข้อมูลเดือน @Dash(I.Month) • ผ่อน @I.InstallmentYears ปี @@ @I.InterestRatePercent.ToString("0.##")%</div>
+                    </div>
+                </div>
+                <div class="ph-sub">@subtitle</div>
+            </div>
+            <div class="content">@body</div>
+            <div class="pf"><span>จัดทำเมื่อ @Now</span><span>หน้า @no / @count</span></div>
+        </section>;
+
+    // ---------------- ส่วนประกอบย่อย ----------------
+    private static RenderFragment Kpi(string label, string value, string unit, string note, string kind) =>
+        @<div class="r-kpi @kind"><div class="l">@label</div><div class="v">@value <small>@unit</small></div><div class="n">@note</div></div>;
+
+    private static RenderFragment Sec(string t) => @<div class="sec">@t</div>;
+
+    private static RenderFragment Td(string v, string cls = "") =>
+        @<td class="@cls @(v.StartsWith('-') && v.Length > 1 ? "neg" : "")">@v</td>;
+
+    private static RenderFragment Kv(IEnumerable<(string, string)> items, (string, string) total) =>
+        @<table class="rt"><tbody>
+            @foreach (var (a, b) in items) { <tr>@Td(a, "l")@Td(b)</tr> }
+            <tr class="tot">@Td(total.Item1, "l")@Td(total.Item2)</tr>
+        </tbody></table>;
+
+    private string PowderNames(CcdsResult r) => string.Join(" & ", r.CcdsRows.Where(x => x.IsPowder).Select(x => x.Name));
+    private string GlNames(CcdsResult r)
+    {
+        var a = r.CcdsRows.Where(x => !x.IsPowder).Select(x => x.Name).ToList();
+        return a.Count == 0 ? "น้ำยา A" : string.Join(", ", a);
+    }
+
+    // ================= หน้า 1: สรุป =================
+    private RenderFragment SummaryBody => @<text>
+            @{ var r = Result; var s = Scenario; }
+            <div class="r-kpis">
+                @Kpi("ค่าใช้จ่ายแบบ GL (ปัจจุบัน)", N0(r.GlNetMonth), "บาท/เดือน", $"{N2(r.GlCostPerTreatment)} บาท/Treatment", "navy")
+                @Kpi("ค่าใช้จ่ายแบบ CCDS", N0(r.CcdsNetMonth), "บาท/เดือน", $"{N2(r.CcdsCostPerTreatment)} บาท/Treatment", "teal")
+                @Kpi("Cost Saving ช่วงผ่อน", Signed(r.SavingPerMonth), "บาท/เดือน", $"{Pct(r.SavingPerMonth, r.GlNetMonth)} ของค่าใช้จ่ายเดิม", Cls(r.SavingPerMonth))
+                @Kpi($"Cost Saving สะสม {I.HorizonYears} ปี", Signed(r.SavingHorizon), "บาท",
+                     r.BreakEvenYear is int y ? $"คืนทุน/เริ่มกำไรสะสมปีที่ {y}" : "ยังไม่คืนทุนในช่วงที่วิเคราะห์", Cls(r.SavingHorizon))
+            </div>
+            <div class="verdict @Cls(r.SavingHorizon)">
+                <div class="h">ข้อสรุป</div>
+                <div>ช่วงผ่อนชำระ @I.InstallmentYears ปีแรก ระบบ CCDS <b>@(r.SavingPerMonth >= 0 ? "ประหยัดกว่า" : "มีค่าใช้จ่ายสูงกว่า")</b>
+                    แบบ GL เดือนละ @N0(Math.Abs(r.SavingPerMonth)) บาท • เมื่อผ่อนครบจะเริ่ม@(r.SavingPerMonthAfterLease >= 0 ? "ประหยัด" : "ขาดทุน")ปีที่ @(I.InstallmentYears + 1)
+                    <b>เดือนละ @N2(Math.Abs(r.SavingPerMonthAfterLease)) บาท</b> (หักค่า PM แล้ว) •
+                    ครบ @I.HorizonYears ปี Cost Saving สุทธิ <b class="@Cls(r.SavingHorizon)">@Signed(r.SavingHorizon, 2) บาท</b></div>
+            </div>
+            <div class="cols" style="grid-template-columns: 11fr 9fr">
+                <div>@Sec("เปรียบเทียบค่าใช้จ่ายต่อเดือน")@CompareTable(r)</div>
+                <div>@Sec("สัดส่วนค่าใช้จ่าย (บาท/เดือน)")@CompareBars(r)</div>
+            </div>
+            <div>
+                @Sec($"ผลตอบแทนระยะยาว {I.HorizonYears} ปี (Cost Saving สะสม)")
+                <div class="cols" style="grid-template-columns: 9fr 11fr">@LongTermFacts(r)@YearChart(r)</div>
+                <div style="margin-top:2mm">@YearTable(r)</div>
+            </div>
+            @if (s is not null)
+            {
+                <div class="note-box"><b>Scenario ปรับ Factor มาตรฐาน</b>
+                    (A @I.ScenarioFactorA.ToString("0.00") / B @I.ScenarioFactorB.ToString("0.00") แกลลอนต่อ Treatment):
+                    Cost Saving @Signed(s.SavingPerMonth) บาท/เดือน,
+                    <b class="@Cls(s.SavingHorizon)">สะสม @I.HorizonYears ปี @Signed(s.SavingHorizon) บาท</b>
+                    <span class="muted"> — ดูรายละเอียดหน้า 3</span></div>
+            }
+        </text>;
+
+    private RenderFragment CompareTable(CcdsResult r)
+    {
+        var rows = new (string, decimal?, decimal?)[]
+        {
+            ("น้ำยา A แบบแกลลอน", r.GlCostMonthA, r.CcdsOtherGlCost),
+            ("น้ำยา B แบบแกลลอน", r.GlCostMonthB, null),
+            ("ผงผสม " + PowderNames(r), null, r.CcdsPowderCost),
+            ("ค่าเช่าซื้อเครื่อง (Leasing)", null, r.LeasingPerMonth),
+            ("ค่าน้ำ (RO)", null, r.WaterCost),
+            ("ค่าไฟฟ้า", null, r.ElectricCost),
+            ("หัก ขายแกลลอนเปล่าคืน", -r.GlSaleRevenue, -r.CcdsGlSaleRevenue),
+        };
+        return @<text>
+            <table class="rt">
+                <thead><tr><th class="l">รายการ</th><th>แบบ GL</th><th>แบบ CCDS</th></tr></thead>
+                <tbody>
+                    @foreach (var (l, g, c) in rows) { <tr>@Td(l, "l")@Td(g is null ? "-" : N0(g.Value))@Td(c is null ? "-" : N0(c.Value))</tr> }
+                    <tr class="tot">@Td("รวมค่าใช้จ่าย/เดือน", "l")@Td(N0(r.GlNetMonth))@Td(N0(r.CcdsNetMonth))</tr>
+                    <tr>@Td("ต้นทุนต่อ Treatment", "l")@Td(N2(r.GlCostPerTreatment))@Td(N2(r.CcdsCostPerTreatment))</tr>
+                </tbody>
+            </table>
+            <div class="saving-row @Cls(r.SavingPerMonth)"><span>Cost Saving / เดือน (GL − CCDS)</span><b class="@Cls(r.SavingPerMonth)">@Signed(r.SavingPerMonth) บาท</b></div>
+        </text>;
+    }
+
+    private static string W(decimal v, decimal max) =>
+        (max == 0 ? 0 : v / max * 100).ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) + "%";
+
+    private RenderFragment CompareBars(CcdsResult r)
+    {
+        var gl = new (string, decimal, string)[] { ("น้ำยา A (GL)", r.GlCostMonthA, "#3B6EA5"), ("น้ำยา B (GL)", r.GlCostMonthB, "#7FA7D1") };
+        var cc = new (string, decimal, string)[] { ("Leasing", r.LeasingPerMonth, "#0F766E"), ("ผงผสม", r.CcdsPowderCost, "#14B8A6"),
+                                                   ("A แบบ GL", r.CcdsOtherGlCost, "#99D5CC"), ("Utility", r.UtilityCost, "#F59E0B") };
+        decimal tGl = gl.Sum(x => x.Item2), tCc = cc.Sum(x => x.Item2), max = Math.Max(tGl, tCc);
+        return @<text>
+            <div class="stack-l">แบบ GL <span>&nbsp; @N0(tGl)</span></div>
+            <div class="stack">@foreach (var p in gl.Where(p => p.Item2 > 0)) { <div style="width:@W(p.Item2, max);background:@p.Item3"></div> }</div>
+            <div class="stack-l" style="margin-top:3mm">แบบ CCDS <span>&nbsp; @N0(tCc)</span></div>
+            <div class="stack">@foreach (var p in cc.Where(p => p.Item2 > 0)) { <div style="width:@W(p.Item2, max);background:@p.Item3"></div> }</div>
+            <div class="legend">@foreach (var p in gl.Concat(cc)) { <span><i style="background:@p.Item3"></i>@p.Item1</span> }</div>
+            <div class="legend">* ยอดก่อนหักรายได้ขายแกลลอนเปล่าคืน</div>
+        </text>;
+    }
+
+    private RenderFragment LongTermFacts(CcdsResult r)
+    {
+        int ny = r.Input.InstallmentYears;
+        var items = new (string, decimal, string)[]
+        {
+            ($"Cost Saving ช่วงผ่อน {ny} ปี", r.SavingDuringLease, ""),
+            ($"หัก ค่า PM หลังหมด Warranty {r.Input.WarrantyYears} ปี", -r.PmDuringLease, $"PM ปีละ {N0(r.Input.PmPerYear)}"),
+            ($"สุทธิเมื่อผ่อนครบ {ny} ปี", r.SavingDuringLeaseAfterPm, ""),
+            ($"ปีที่ {ny + 1} เป็นต้นไป / เดือน", r.SavingPerMonthAfterLease, "หัก PM ต่อเดือนแล้ว"),
+            ($"ปีที่ {ny + 1} เป็นต้นไป / ปี", r.SavingPerYearAfterLease, ""),
+        };
+        return @<div class="facts-r">
+            @foreach (var (l, v, note) in items)
+            {
+                <div class="f"><div>@l @if (note != "") { <div class="note">@note</div> }</div><b class="@Cls(v)">@Signed(v, 2)</b></div>
+            }
+            <div class="tot @Cls(r.SavingHorizon)"><span>ครบ @r.Input.HorizonYears ปี Cost Saving</span><b class="@Cls(r.SavingHorizon)">@Signed(r.SavingHorizon, 2)</b></div>
+        </div>;
+    }
+
+    private RenderFragment YearChart(CcdsResult r)
+    {
+        const decimal H = 110;
+        decimal maxPos = Math.Max(0, r.Years.Max(y => y.Cumulative));
+        decimal maxNeg = Math.Max(0, -r.Years.Min(y => y.Cumulative));
+        decimal span = maxPos + maxNeg == 0 ? 1 : maxPos + maxNeg;
+        decimal hPos = maxPos / span * H, hNeg = H - hPos;
+        string Px(decimal v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + "px";
+        return @<div class="ychart">
+            <div class="cols-y">
+                @foreach (var y in r.Years)
+                {
+                    var bar = Math.Max(Math.Abs(y.Cumulative) / span * H, 0.8m);
+                    bool lease = y.Year <= r.Input.InstallmentYears;
+                    var color = y.Cumulative >= 0 ? (lease ? "#4CB97A" : "#22A05A") : (lease ? "#EF7B7B" : "#E05252");
+                    <div class="yc">
+                        @if (hPos > 0.5m)
+                        {
+                            <div class="zone p" style="height:@Px(hPos)">@if (y.Cumulative > 0) { <div style="height:@Px(bar);background:@color"></div> }</div>
+                        }
+                        <div class="zero"></div>
+                        @if (hNeg > 0.5m)
+                        {
+                            <div class="zone n" style="height:@Px(hNeg)">@if (y.Cumulative < 0) { <div style="height:@Px(bar);background:@color"></div> }</div>
+                        }
+                        <div class="lab">ปี @y.Year</div>
+                        <div class="val @Cls(y.Cumulative)">@Short(y.Cumulative)</div>
+                    </div>
+                }
+            </div>
+            <div class="cap">สีอ่อน = ช่วงผ่อนชำระ, สีเข้ม = หลังผ่อนครบ • M = ล้านบาท, K = พันบาท</div>
+        </div>;
+    }
+
+    private RenderFragment YearTable(CcdsResult r)
+    {
+        var lines = new (string, Func<YearRow, decimal>, bool)[]
+        {
+            ("Saving ค่าใช้จ่าย", y => y.Saving, false),
+            ("หัก ค่า PM", y => -y.Pm, false),
+            ("ไม่ต้องจ่าย Leasing", y => y.LeasingFreed, false),
+            ("สุทธิรายปี", y => y.Net, false),
+            ("สะสม", y => y.Cumulative, true),
+        };
+        return @<table class="rt small">
+            <thead><tr><th class="l">บาท</th>@foreach (var y in r.Years) { <th>ปี @y.Year</th> }</tr></thead>
+            <tbody>
+                @foreach (var (label, f, bold) in lines)
+                {
+                    <tr style="@(bold ? "font-weight:700" : "")">@Td(label, "l")@foreach (var y in r.Years) { var v = f(y); @Td(Math.Abs(v) < 0.5m ? "-" : N0(v)) }</tr>
+                }
+            </tbody>
+        </table>;
+    }
+
+    // ================= หน้า 2: รายละเอียด =================
+    private RenderFragment DetailBody => @<text>
+        @{ var r = Result; var pa = r.PowderA; var pb = r.PowderB; }
+        <div>
+            @Sec($"1. ปริมาณน้ำยาและค่าใช้จ่ายแบบแกลลอน (GL) — {N0(r.Treatments)} Treatment/เดือน")
+            @GlTable(r)
+            <div class="foot-note">ขายแกลลอนเปล่าคืน @N0(r.TotalGallons) GL × @N2(I.GallonSalePrice) = @N0(r.GlSaleRevenue) บาท →
+                <b>ค่าใช้จ่ายสุทธิแบบ GL @N0(r.GlNetMonth) บาท/เดือน</b></div>
+        </div>
+        <div class="cols" style="grid-template-columns: 1fr 1fr">
+            <div>@Sec($"2. ค่าเช่าซื้อเครื่อง CCDS ({N0(I.Machines)} เครื่อง)")
+                @Kv(new[] { ("ราคาเครื่อง", N0(I.LeasingPrice)), ("ดอกเบี้ย (Flat) / ปี", I.InterestRatePercent.ToString("0.##") + "%"),
+                            ("จำนวนปีผ่อน", $"{I.InstallmentYears} ปี ({I.InstallmentYears * 12} งวด)"),
+                            ("ดอกเบี้ยรวม", N0(r.LeasingTotalInterest)), ("ยอดรวมทั้งสิ้น", N0(r.LeasingTotal)) },
+                    ("ค่างวด / เดือน", N2(r.LeasingPerMonth)))</div>
+            <div>@Sec("3. ต้นทุนผงผสมต่อ Treatment")
+                <table class="rt"><thead><tr><th class="l">รายการ</th><th>ผง A</th><th>ผง B</th></tr></thead><tbody>
+                    <tr>@Td("ราคา / กล่อง", "l")@Td(N2(pa.CostPerBox))@Td(N2(pb.CostPerBox))</tr>
+                    <tr>@Td("ผสมได้ (ครั้ง/กล่อง)", "l")@Td(N0(pa.MixPerBox))@Td(N0(pb.MixPerBox))</tr>
+                    <tr>@Td("ลิตร / ครั้งผสม", "l")@Td(N2(pa.MixLiter))@Td(N2(pb.MixLiter))</tr>
+                    <tr>@Td("ลิตร / กล่อง", "l")@Td(N0(pa.LiterPerBox))@Td(N0(pb.LiterPerBox))</tr>
+                    <tr>@Td("ลิตร / Treatment", "l")@Td(N2(r.LiterPerTreatA))@Td(N2(r.LiterPerTreatB))</tr>
+                    <tr>@Td("Treatment / กล่อง", "l")@Td(N2(pa.TreatmentsPerBox))@Td(N2(pb.TreatmentsPerBox))</tr>
+                    <tr class="tot">@Td("ต้นทุน / Treatment", "l")@Td(N2(pa.CostPerTreat))@Td(N2(pb.CostPerTreat))</tr>
+                </tbody></table></div>
+        </div>
+        <div>@Sec("4. ค่าน้ำยาเมื่อใช้ระบบ CCDS (ผงผสม + สูตรที่ยังใช้แกลลอน)")@CcdsTable(r)</div>
+        <div class="cols" style="grid-template-columns: 11fr 8fr">
+            <div>@Sec("5. ค่า Utility")@UtilityTables(r)</div>
+            <div>@Sec($"6. ค่าใช้จ่ายระบบ CCDS ({N0(r.Treatments)} Tx/เดือน)")
+                @Kv(new[] { ("Leasing", N0(r.LeasingPerMonth)), ("ผงผสม " + PowderNames(r), N0(r.CcdsPowderCost)),
+                            (GlNames(r) + " แบบ GL", N0(r.CcdsOtherGlCost)), ("Utility (น้ำ + ไฟ)", N0(r.UtilityCost)),
+                            ("หัก ขายแกลลอนคืน", N0(-r.CcdsGlSaleRevenue)) }, ("รวม / เดือน", N0(r.CcdsNetMonth)))</div>
+        </div>
+    </text>;
+
+    private RenderFragment GlTable(CcdsResult r) => @<table class="rt">
+        <thead><tr><th class="l">สูตร</th><th>แกลลอน</th><th>Treatment</th><th>GL / Tx</th><th>ลิตร / Tx</th><th>ราคา / GL</th><th>บาท / Tx</th><th>บาท / เดือน</th></tr></thead>
+        <tbody>
+            @foreach (var a in r.ARows) { <tr>@Td(a.Name, "l")@Td(N0(a.Gallons))@Td(N0(a.Treatments))<td></td><td></td><td></td><td></td><td></td></tr> }
+            <tr class="sub">@Td("รวม A", "l")@Td(N0(r.TotalGallonsA))@Td(N0(r.Treatments))@Td(N2(r.AvgGallonPerTreatA))@Td(N2(r.LiterPerTreatA))@Td(N2(r.Input.PricePerGallonA))@Td(N2(r.GlCostPerTreatA))@Td(N0(r.GlCostMonthA))</tr>
+            <tr class="sub">@Td("B", "l")@Td(N0(r.GallonsB))@Td(N0(r.Treatments))@Td(N2(r.AvgGallonPerTreatB))@Td(N2(r.LiterPerTreatB))@Td(N2(r.Input.PricePerGallonB))@Td(N2(r.GlCostPerTreatB))@Td(N0(r.GlCostMonthB))</tr>
+            <tr class="tot">@Td("รวม", "l")@Td(N0(r.TotalGallons))<td></td><td></td><td></td><td></td>@Td(N2(r.GlCostPerTreatA + r.GlCostPerTreatB))@Td(N0(r.GlCostMonth))</tr>
+        </tbody>
+    </table>;
+
+    private RenderFragment CcdsTable(CcdsResult r) => @<table class="rt">
+        <thead><tr><th class="l">สูตร</th><th class="l">ใช้</th><th>แกลลอน</th><th>Treatment</th><th>ราคา / GL</th><th>บาท / Tx</th><th>บาท / เดือน</th><th>ลิตรผสม</th></tr></thead>
+        <tbody>
+            @foreach (var x in r.CcdsRows)
+            {
+                <tr>@Td(x.Name, "l")<td class="l"><span class="tag @(x.IsPowder ? "powder" : "gl")">@(x.IsPowder ? "ผงผสม" : "แกลลอน")</span></td>
+                    @Td(x.IsPowder ? "-" : N0(x.Gallons))@Td(N0(x.Treatments))@Td(x.IsPowder ? "-" : N2(x.PricePerGallon))@Td(N2(x.CostPerTreat))@Td(N0(x.CostPerMonth))@Td(x.IsPowder ? N0(x.MixedLiters) : "-")</tr>
+            }
+            <tr class="tot">@Td("รวม", "l")<td></td>@Td(N0(r.CcdsOtherGallons))@Td(N0(r.Treatments))<td></td><td></td>@Td(N0(r.CcdsPowderCost + r.CcdsOtherGlCost))@Td(N0(r.MixedLitersTotal))</tr>
+        </tbody>
+    </table>;
+
+    private RenderFragment UtilityTables(CcdsResult r) => @<text>
+        <table class="rt">
+            <thead><tr><th class="l">Utility</th><th>บาท / หน่วย</th><th>ใช้ / เดือน</th><th>บาท / เดือน</th></tr></thead>
+            <tbody>
+                <tr>@Td("ค่าน้ำ (m³)", "l")@Td(N2(r.Input.WaterRate))@Td(N1(r.WaterM3))@Td(N0(r.WaterCost))</tr>
+                <tr>@Td("ค่าไฟฟ้า (kWh)", "l")@Td(N2(r.Input.ElectricRate))@Td(N0(r.ElectricKwh))@Td(N0(r.ElectricCost))</tr>
+                <tr class="tot"><td class="l" colspan="3">รวม Utility / เดือน</td>@Td(N0(r.UtilityCost))</tr>
+            </tbody>
+        </table>
+        <div class="foot-note" style="font-size:7pt">น้ำ = ลิตรผสม @N0(r.MixedLitersTotal) × @N2(r.Input.WaterM3Per1000Liter) m³ / 1,000 ลิตร</div>
+        <table class="rt small" style="margin-top:1.5mm">
+            <thead><tr><th class="l">อุปกรณ์</th><th>kW</th><th>ชม./รอบ</th><th>จำนวน</th><th>รอบ/วัน</th><th>kWh/วัน</th><th>kWh/เดือน</th></tr></thead>
+            <tbody>
+                @foreach (var e in r.EquipmentRows)
+                {
+                    <tr>@Td(e.Name, "l")@Td(N2(e.Kw))@Td(N1(e.Hours))@Td(N0(e.Qty))@Td(N0(e.RunsPerDay))@Td(N2(e.KwhPerDay))@Td(N1(e.KwhPerMonth))</tr>
+                }
+                <tr class="tot"><td class="l" colspan="6">รวม kWh / เดือน (@Math.Max(r.Input.DaysPerMonth, 1) วัน)</td>@Td(N0(r.ElectricKwh))</tr>
+            </tbody>
+        </table>
+    </text>;
+
+    // ================= หน้า 3: Scenario =================
+    private RenderFragment ScenarioBody => @<text>
+        @{
+            var a = Result; var s = Scenario!; int ny = I.InstallmentYears;
+            var lines = new (string, decimal, decimal, bool)[]
+            {
+                ("แกลลอน A / เดือน", a.TotalGallonsA, s.TotalGallonsA, false),
+                ("แกลลอน B / เดือน", a.GallonsB, s.GallonsB, false),
+                ("แกลลอน A / Treatment", a.AvgGallonPerTreatA, s.AvgGallonPerTreatA, true),
+                ("แกลลอน B / Treatment", a.AvgGallonPerTreatB, s.AvgGallonPerTreatB, true),
+                ("ต้นทุนผง A / Treatment", a.PowderA.CostPerTreat, s.PowderA.CostPerTreat, true),
+                ("ต้นทุนผง B / Treatment", a.PowderB.CostPerTreat, s.PowderB.CostPerTreat, true),
+                ("ค่าใช้จ่ายแบบ GL / เดือน", a.GlNetMonth, s.GlNetMonth, false),
+                ("   • ผงผสม", a.CcdsPowderCost, s.CcdsPowderCost, false),
+                ("   • น้ำยา A ที่ยังใช้แกลลอน", a.CcdsOtherGlCost, s.CcdsOtherGlCost, false),
+                ("   • Utility", a.UtilityCost, s.UtilityCost, false),
+                ("ค่าใช้จ่ายแบบ CCDS / เดือน", a.CcdsNetMonth, s.CcdsNetMonth, false),
+                ("Cost Saving / เดือน (ช่วงผ่อน)", a.SavingPerMonth, s.SavingPerMonth, false),
+                ($"Cost Saving / เดือน (ปีที่ {ny + 1}+)", a.SavingPerMonthAfterLease, s.SavingPerMonthAfterLease, false),
+                ($"สุทธิเมื่อผ่อนครบ {ny} ปี", a.SavingDuringLeaseAfterPm, s.SavingDuringLeaseAfterPm, false),
+            };
+        }
+        <div class="note-box"><b>แนวคิด:</b> ปรับปริมาณแกลลอนให้เป็นค่ามาตรฐาน — น้ำยา A @I.ScenarioFactorA.ToString("0.00") แกลลอน/Treatment,
+            น้ำยา B @I.ScenarioFactorB.ToString("0.00") แกลลอน/Treatment (จำนวน Treatment ต่อสูตรเท่าเดิม)
+            แล้วคำนวณค่าใช้จ่ายทั้งแบบ GL และ CCDS ใหม่ เพื่อดูผลเมื่อการใช้น้ำยาเป็นไปตามมาตรฐาน</div>
+        <div class="r-kpis">
+            @Kpi("แบบ GL (Scenario)", N0(s.GlNetMonth), "บาท/เดือน", $"จริง {N0(a.GlNetMonth)}", "navy")
+            @Kpi("แบบ CCDS (Scenario)", N0(s.CcdsNetMonth), "บาท/เดือน", $"จริง {N0(a.CcdsNetMonth)}", "teal")
+            @Kpi("Cost Saving / เดือน", Signed(s.SavingPerMonth), "บาท", $"จริง {Signed(a.SavingPerMonth)}", Cls(s.SavingPerMonth))
+            @Kpi($"สะสม {I.HorizonYears} ปี", Signed(s.SavingHorizon), "บาท", $"จริง {Signed(a.SavingHorizon)}", Cls(s.SavingHorizon))
+        </div>
+        <div>@Sec("เปรียบเทียบ ข้อมูลจริง vs Scenario")
+            <table class="rt"><thead><tr><th class="l">รายการ</th><th>ข้อมูลจริง</th><th>Scenario</th><th>ผลต่าง</th></tr></thead><tbody>
+                @foreach (var (l, x, y, dec) in lines)
+                {
+                    <tr>@Td(l, "l indent")@Td(dec ? N2(x) : N0(x))@Td(dec ? N2(y) : N0(y))@Td(Signed(y - x, dec ? 2 : 0))</tr>
+                }
+                <tr class="tot">@Td($"Cost Saving สะสม {I.HorizonYears} ปี", "l")@Td(Signed(a.SavingHorizon))@Td(Signed(s.SavingHorizon))@Td(Signed(s.SavingHorizon - a.SavingHorizon))</tr>
+            </tbody></table></div>
+        <div>@Sec("ปริมาณน้ำยาแบบ GL (Scenario)")@GlTable(s)</div>
+        <div>@Sec("ค่าน้ำยาเมื่อใช้ระบบ CCDS (Scenario)")@CcdsTable(s)</div>
+    </text>;
+}

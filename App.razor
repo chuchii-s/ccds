@@ -1,0 +1,11 @@
+<Router AppAssembly="@typeof(App).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+    </Found>
+    <NotFound>
+        <PageTitle>ไม่พบหน้า</PageTitle>
+        <LayoutView Layout="@typeof(MainLayout)">
+            <div class="page-wrap"><div class="card empty">ไม่พบหน้านี้ — <a href="">กลับไปหน้าโครงการ</a></div></div>
+        </LayoutView>
+    </NotFound>
+</Router>

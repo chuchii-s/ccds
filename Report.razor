@@ -1,0 +1,39 @@
+@page "/project/{Id}/report"
+@inject ProjectStore Store
+@inject IJSRuntime JS
+
+<PageTitle>@(project is null ? "รายงาน" : $"{project.DisplayName} — รายงาน")</PageTitle>
+
+@if (project is null)
+{
+    <div class="page-wrap"><div class="card empty">@(loading ? "กำลังโหลด…" : "ไม่พบโครงการนี้ในเบราว์เซอร์นี้")</div></div>
+}
+else
+{
+    var r = CcdsCalculator.Calculate(project.Input);
+    var s = project.Input.ScenarioEnabled ? CcdsCalculator.Calculate(CcdsCalculator.BuildScenario(project.Input)) : null;
+
+    <div class="subbar no-print">
+        <div class="crumb"><a href="">โครงการ</a> / <a href="project/@project.Id">@project.DisplayName</a> / <b>รายงาน</b></div>
+        <div class="head-actions">
+            <a class="btn" href="project/@project.Id">← แก้ไขข้อมูล</a>
+            <button class="btn primary" @onclick='() => JS.InvokeVoidAsync("ccds.print")'>พิมพ์ / บันทึก PDF</button>
+        </div>
+    </div>
+    <div class="print-tip no-print">ในหน้าต่างพิมพ์ เลือก <b>Save as PDF</b> (บันทึกเป็น PDF) ขนาด <b>A4</b> และเปิด <b>Background graphics</b> (กราฟิกพื้นหลัง) เพื่อให้มีสี</div>
+    <div class="report-wrap">
+        <ReportPages Result="r" Scenario="s" />
+    </div>
+}
+
+@code {
+    [Parameter] public string Id { get; set; } = "";
+    private Project? project;
+    private bool loading = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        project = await Store.GetAsync(Id);
+        loading = false;
+    }
+}
