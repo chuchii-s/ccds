@@ -1,0 +1,80 @@
+@* ช่องตัวเลขที่พิมพ์เองได้ + ปุ่ม ▾ เปิดรายการค่าที่ใช้บ่อย (ใช้กับดอกเบี้ย / ปีผ่อน) *@
+<div class="combo @(open ? "open" : "")" @onfocusout="FocusOut" @onkeydown="Key">
+    <span class="inp" style="--u:@Unit.Length">
+        <input @ref="box" type="number" step="@Step" value="@Fmt(Value)" @onchange="Typed" @onfocus="CancelClose" />
+        <span class="u">@Unit</span>
+    </span>
+    <button type="button" class="combo-btn" tabindex="-1" aria-label="เลือกจากรายการ" title="เลือกจากรายการ"
+            @onmousedown:preventDefault="true" @onclick="Toggle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+    </button>
+    @if (open)
+    {
+        <ul class="combo-list" role="listbox">
+            @foreach (var o in Options)
+            {
+                <li>
+                    <button type="button" role="option" class="@(o == Value ? "on" : "")" @onmousedown:preventDefault="true" @onclick="() => Pick(o)">
+                        @Fmt(o) @Unit
+                    </button>
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public decimal Value { get; set; }
+    [Parameter, EditorRequired] public IReadOnlyList<decimal> Options { get; set; } = [];
+    [Parameter] public string Unit { get; set; } = "";
+    [Parameter] public string Format { get; set; } = "0.##";
+    [Parameter] public string Step { get; set; } = "any";
+    /// <summary>เรียกเมื่อเลือกจากรายการหรือพิมพ์ค่าใหม่</summary>
+    [Parameter] public EventCallback<decimal> OnChange { get; set; }
+
+    private static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
+    private ElementReference box;
+    private bool open;
+    private CancellationTokenSource? closing;
+
+    private string Fmt(decimal v) => v.ToString(Format, Inv);
+
+    private async Task Toggle()
+    {
+        open = !open;
+        if (open) await box.FocusAsync();   // ให้คลิกที่อื่นแล้วรายการปิดเอง
+    }
+
+    private async Task Pick(decimal v)
+    {
+        open = false;
+        await OnChange.InvokeAsync(v);
+    }
+
+    private async Task Typed(ChangeEventArgs e)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Number, Inv, out var v))
+            await OnChange.InvokeAsync(v);
+    }
+
+    private void Key(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") open = false;
+        if (e.Key == "ArrowDown" && e.AltKey) open = true;
+    }
+
+    private void CancelClose() => closing?.Cancel();
+
+    private async Task FocusOut()
+    {
+        closing?.Cancel();
+        closing = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(150, closing.Token);
+            open = false;
+            StateHasChanged();
+        }
+        catch (TaskCanceledException) { }
+    }
+}

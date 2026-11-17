@@ -1,0 +1,131 @@
+@page "/settings"
+@inject ProjectStore Store
+@inject UserSession Session
+
+<PageTitle>ตั้งค่า — CCDS Simulator</PageTitle>
+
+<div class="page-wrap narrow">
+    @if (Session.Current is { } me)
+    {
+        <div class="card user-card">
+            <h2><span class="avatar" style="--h:@UserGate.Hue(me.Id)">@UserGate.Initial(me.Name)</span>ผู้ใช้</h2>
+            <p class="muted small">สถานที่และค่าตั้งต้นของผู้ใช้นี้เก็บแยกจากผู้ใช้อื่นในเบราว์เซอร์นี้</p>
+            <div class="uc-row">
+                <label>ชื่อผู้ใช้<input @bind="name" @bind:event="oninput" maxlength="40" /></label>
+                <button type="button" class="btn" disabled="@(string.IsNullOrWhiteSpace(name) || name.Trim() == me.Name)" @onclick="Rename">บันทึกชื่อ</button>
+            </div>
+            <div class="uc-pin">
+                <div class="uc-pin-h"><Icon Name="lock" /> PIN <span class="muted small">@(me.HasPin ? "(ตั้งไว้แล้ว)" : "(ยังไม่ได้ตั้ง)")</span></div>
+                <div class="grid g3">
+                    @if (me.HasPin)
+                    {
+                        <label>PIN ปัจจุบัน<input type="password" inputmode="numeric" autocomplete="off" maxlength="6" @bind="oldPin" @bind:event="oninput" /></label>
+                    }
+                    <label>PIN ใหม่ (4–6 หลัก)<input type="password" inputmode="numeric" autocomplete="new-password" maxlength="6" @bind="newPin" @bind:event="oninput" /></label>
+                    <label>ยืนยัน PIN ใหม่<input type="password" inputmode="numeric" autocomplete="new-password" maxlength="6" @bind="newPin2" @bind:event="oninput" /></label>
+                </div>
+                <div class="uc-actions">
+                    <button type="button" class="btn primary" @onclick="SetPin">@(me.HasPin ? "เปลี่ยน PIN" : "ตั้ง PIN")</button>
+                    @if (me.HasPin) { <button type="button" class="btn" @onclick="RemovePin">ยกเลิก PIN</button> }
+                    <span class="uc-msg @(userOk ? "ok" : "err")">@userMsg</span>
+                </div>
+            </div>
+            <div class="uc-danger">
+                <button type="button" class="btn danger-outline" @onclick="() => confirmDeleteUser = true">ลบผู้ใช้นี้และข้อมูลทั้งหมด</button>
+            </div>
+        </div>
+    }
+    <div class="page-head">
+        <div>
+            <h1>ค่าตั้งต้นสำหรับสถานที่ใหม่</h1>
+            <p class="muted">ตั้งราคาน้ำยา ราคาผง ค่าน้ำ ค่าไฟ ค่า PM ฯลฯ ของคุณเองไว้ที่นี่ ทุกสถานที่ใหม่จะใช้ค่าเหล่านี้
+                (เก็บในเบราว์เซอร์นี้เท่านั้น ไม่กระทบสถานที่ที่สร้างไว้แล้ว)</p>
+        </div>
+        <div class="head-actions">
+            <span class="saved">@(saved is null ? "" : $"บันทึกแล้ว {saved:HH:mm:ss}")</span>
+            <button class="btn" @onclick="() => confirmReset = true">คืนค่าจากโรงงาน</button>
+        </div>
+    </div>
+    @if (defaults is not null)
+    {
+        <div class="glass"><InputForm Input="defaults" ShowProjectSections="false" OnChange="Save" /></div>
+    }
+</div>
+
+<ConfirmDialog Visible="confirmDeleteUser" Title="ลบผู้ใช้นี้?" ConfirmText="ลบผู้ใช้" Danger="true"
+               OnConfirm="DeleteUser" OnCancel="() => confirmDeleteUser = false">
+    <p>ผู้ใช้ <b>@Session.Current?.Name</b> พร้อมสถานที่และค่าตั้งต้นทั้งหมดของผู้ใช้นี้จะถูกลบออกจากเบราว์เซอร์นี้</p>
+    <p class="warn-text">ลบแล้วกู้คืนไม่ได้ — ถ้าต้องการเก็บไว้ ให้กด "สำรองข้อมูลทั้งหมด" ที่หน้าสถานที่ก่อน</p>
+</ConfirmDialog>
+
+<ConfirmDialog Visible="confirmReset" Title="คืนค่าจากโรงงาน?" ConfirmText="คืนค่า"
+               OnConfirm="Reset" OnCancel="() => confirmReset = false">
+    <p>ค่าตั้งต้นทั้งหมดในหน้านี้จะกลับเป็นค่าจากโรงงาน (สถานที่ที่สร้างไว้แล้วไม่เปลี่ยน)</p>
+</ConfirmDialog>
+
+@code {
+    private CcdsInput? defaults;
+    private DateTime? saved;
+
+    protected override async Task OnInitializedAsync() => defaults = await Store.GetDefaultsAsync();
+
+    private async Task Save()
+    {
+        await Store.SaveDefaultsAsync(defaults!);
+        saved = DateTime.Now;
+    }
+
+    private bool confirmReset;
+
+    // ---------- ผู้ใช้ ----------
+    private string? name, oldPin, newPin, newPin2, userMsg;
+    private bool userOk, confirmDeleteUser;
+
+    protected override void OnParametersSet() => name ??= Session.Current?.Name;
+
+    private void Msg(string m, bool ok) { userMsg = m; userOk = ok; }
+    private const string Gone = "บันทึกไม่สำเร็จ — ผู้ใช้นี้อาจถูกลบจากแท็บอื่น หรือพื้นที่บันทึกในเบราว์เซอร์เต็ม";
+
+    private async Task Rename()
+    {
+        var n = (name ?? "").Trim();
+        if (n.Length == 0) return;
+        var others = (await Session.GetUsersAsync()).Where(u => u.Id != Session.Current!.Id);
+        if (others.Any(u => string.Equals(u.Name, n, StringComparison.OrdinalIgnoreCase))) { Msg("มีชื่อผู้ใช้นี้แล้ว", false); return; }
+        if (await Session.RenameAsync(n)) Msg("บันทึกชื่อแล้ว", true);
+        else Msg(Gone, false);
+    }
+
+    private async Task SetPin()
+    {
+        var me = Session.Current!;
+        if (me.HasPin && !Session.CheckPin(me, oldPin)) { Msg("PIN ปัจจุบันไม่ถูกต้อง", false); return; }
+        if (string.IsNullOrEmpty(newPin) || !UserSession.ValidPin(newPin)) { Msg("PIN ใหม่ต้องเป็นตัวเลข 4–6 หลัก", false); return; }
+        if (newPin != newPin2) { Msg("ยืนยัน PIN ไม่ตรงกัน", false); return; }
+        if (!await Session.SetPinAsync(newPin)) { Msg(Gone, false); return; }
+        oldPin = newPin = newPin2 = null;
+        Msg("บันทึก PIN แล้ว", true);
+    }
+
+    private async Task RemovePin()
+    {
+        var me = Session.Current!;
+        if (!Session.CheckPin(me, oldPin)) { Msg("ใส่ PIN ปัจจุบันก่อน จึงจะยกเลิก PIN ได้", false); return; }
+        if (!await Session.SetPinAsync(null)) { Msg(Gone, false); return; }
+        oldPin = newPin = newPin2 = null;
+        Msg("ยกเลิก PIN แล้ว", true);
+    }
+
+    private async Task DeleteUser()
+    {
+        confirmDeleteUser = false;
+        await Session.DeleteCurrentAsync();
+    }
+
+    private async Task Reset()
+    {
+        confirmReset = false;
+        defaults = Presets.FactoryDefaults();
+        await Save();
+    }
+}

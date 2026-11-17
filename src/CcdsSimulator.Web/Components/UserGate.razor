@@ -1,0 +1,139 @@
+@* หน้าเลือกผู้ใช้ (แสดงแทนเนื้อหาจนกว่าจะเข้าสู่ระบบ) — ผู้ใช้แต่ละคนมีข้อมูลแยกกันในเบราว์เซอร์นี้ *@
+@inject UserSession Session
+
+<div class="gate-bg" aria-hidden="true"></div>
+<div class="gate">
+    <div class="gate-head">
+        <span class="gate-logo"><Icon Name="users" /></span>
+        <h1>เลือกผู้ใช้</h1>
+        <p class="muted">ข้อมูลสถานที่และค่าตั้งต้นของแต่ละคนเก็บแยกกันในเบราว์เซอร์นี้</p>
+    </div>
+
+    @if (loading)
+    {
+        <div class="gate-card muted">กำลังโหลด…</div>
+    }
+    else
+    {
+        @if (users.Count > 0 && !adding)
+        {
+            <div class="gate-list">
+                @foreach (var u in users)
+                {
+                    bool sel = picked?.Id == u.Id;
+                    <div class="gate-user @(sel ? "sel" : "")">
+                        <button type="button" class="gate-pick" @onclick="() => Pick(u)">
+                            <span class="avatar" style="--h:@Hue(u.Id)">@Initial(u.Name)</span>
+                            <span class="gu-name">@u.Name</span>
+                            @if (u.HasPin) { <span class="gu-lock" title="มี PIN"><Icon Name="lock" /></span> }
+                        </button>
+                        @if (sel && u.HasPin)
+                        {
+                            <form class="pin-row" @onsubmit="Login" @onsubmit:preventDefault="true">
+                                <input @ref="pinBox" type="password" inputmode="numeric" autocomplete="off" maxlength="6"
+                                       placeholder="PIN 4–6 หลัก" aria-label="PIN ของ @u.Name" @bind="pin" @bind:event="oninput" />
+                                <button type="submit" class="btn primary">เข้าสู่ระบบ</button>
+                            </form>
+                            @if (!string.IsNullOrEmpty(error)) { <div class="gate-err">@error</div> }
+                        }
+                    </div>
+                }
+            </div>
+            <button type="button" class="btn gate-add" @onclick="StartAdd">+ เพิ่มผู้ใช้</button>
+            <p class="gate-note"><Icon Name="info" /><span>ไม่มีผู้ดูแลระบบ (Admin) — หากลืมรหัสผ่าน (PIN) แนะนำให้เพิ่มผู้ใช้ใหม่ทันที</span></p>
+        }
+        else
+        {
+            <form class="gate-card" @onsubmit="Create" @onsubmit:preventDefault="true">
+                <h2>@(users.Count == 0 ? "สร้างผู้ใช้คนแรก" : "เพิ่มผู้ใช้")</h2>
+                @if (users.Count == 0 && legacy)
+                {
+                    <div class="msg">พบข้อมูลสถานที่เดิมในเบราว์เซอร์นี้ — จะย้ายไปเป็นของผู้ใช้คนแรกที่สร้าง</div>
+                }
+                <label>ชื่อผู้ใช้<input @bind="newName" @bind:event="oninput" maxlength="40" placeholder="เช่น สมชาย / ทีมขายภาคเหนือ" /></label>
+                <div class="grid g2">
+                    <label>PIN (ไม่บังคับ)<input type="password" inputmode="numeric" autocomplete="new-password" maxlength="6" placeholder="4–6 หลัก" @bind="newPin" @bind:event="oninput" /></label>
+                    <label>ยืนยัน PIN<input type="password" inputmode="numeric" autocomplete="new-password" maxlength="6" @bind="newPin2" @bind:event="oninput" /></label>
+                </div>
+                <p class="muted small">PIN ใช้กันคนอื่นเปิดดูข้อมูลของคุณโดยบังเอิญ (ข้อมูลยังเก็บในเบราว์เซอร์เครื่องนี้)</p>
+                @if (!string.IsNullOrEmpty(error)) { <div class="gate-err">@error</div> }
+                <div class="gate-actions">
+                    @if (users.Count > 0) { <button type="button" class="btn" @onclick="() => { adding = false; error = null; }">ยกเลิก</button> }
+                    <button type="submit" class="btn primary">สร้างผู้ใช้และเข้าสู่ระบบ</button>
+                </div>
+            </form>
+        }
+    }
+</div>
+
+@code {
+    private List<UserProfile> users = new();
+    private bool loading = true, adding, legacy;
+    private UserProfile? picked;
+    private string? pin, error, newName, newPin, newPin2;
+    private ElementReference pinBox;
+    private bool focusPin;
+
+    protected override async Task OnInitializedAsync()
+    {
+        users = await Session.GetUsersAsync();
+        legacy = users.Count == 0 && await Session.HasLegacyDataAsync();
+        loading = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (focusPin) { focusPin = false; try { await pinBox.FocusAsync(); } catch { } }
+    }
+
+    /// <summary>ใช้รายชื่อล่าสุดเสมอ (อาจมีการเพิ่ม/ลบผู้ใช้จากแท็บอื่น)</summary>
+    private async Task<UserProfile?> Fresh(UserProfile u)
+    {
+        users = await Session.GetUsersAsync();
+        var f = users.FirstOrDefault(x => x.Id == u.Id);
+        if (f is null) { picked = null; error = null; }
+        return f;
+    }
+
+    private async Task Pick(UserProfile u)
+    {
+        error = null; pin = null;
+        if (await Fresh(u) is not { } cur) return;
+        u = cur;
+        if (!u.HasPin) { await Session.LoginAsync(u); return; }
+        picked = u; focusPin = true;
+    }
+
+    private async Task Login()
+    {
+        if (picked is null) return;
+        if (await Fresh(picked) is not { } cur) return;
+        picked = cur;
+        if (!Session.CheckPin(picked, pin)) { error = "PIN ไม่ถูกต้อง"; pin = null; focusPin = true; return; }
+        await Session.LoginAsync(picked);
+    }
+
+    private void StartAdd() { adding = true; error = null; newName = newPin = newPin2 = null; }
+
+    private async Task Create()
+    {
+        var name = (newName ?? "").Trim();
+        if (name.Length == 0) { error = "กรุณาใส่ชื่อผู้ใช้"; return; }
+        if (users.Any(u => string.Equals(u.Name, name, StringComparison.OrdinalIgnoreCase))) { error = "มีชื่อผู้ใช้นี้แล้ว"; return; }
+        if (!UserSession.ValidPin(newPin)) { error = "PIN ต้องเป็นตัวเลข 4–6 หลัก"; return; }
+        if ((newPin ?? "") != (newPin2 ?? "")) { error = "ยืนยัน PIN ไม่ตรงกัน"; return; }
+        if (await Session.CreateAsync(name, string.IsNullOrEmpty(newPin) ? null : newPin) is null)
+        {
+            users = await Session.GetUsersAsync();
+            error = "มีชื่อผู้ใช้นี้แล้ว";
+        }
+    }
+
+    /// <summary>ตัวอักษรแรกของชื่อ (ข้ามสระหน้า เ แ โ ใ ไ ของภาษาไทย)</summary>
+    public static string Initial(string name)
+    {
+        var t = (name ?? "").Trim().TrimStart('เ', 'แ', 'โ', 'ใ', 'ไ');
+        return t.Length == 0 ? "?" : t[..1].ToUpperInvariant();
+    }
+    public static int Hue(string id) => Math.Abs(id.Aggregate(7, (h, c) => h * 31 + c)) % 360;
+}

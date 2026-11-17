@@ -1,0 +1,53 @@
+@* ตาราง Cost Saving รายปี (Saving / PM / Leasing / สุทธิ / สะสม) — ใช้ทั้งในรายงานและหน้าแก้ไข
+   สุทธิรายปี: ตั้งแต่ปีที่เริ่มคืนทุนเป็นสีเขียว (ปีที่เริ่มคืนทุนมีพื้นเขียวอ่อน) • สะสม: สีน้ำเงิน *@
+@foreach (var years in Chunks())
+{
+    <table class="rt small yt">
+        <thead><tr><th class="l">บาท</th>@foreach (var y in years) { <th class="@(y.Year == Result.BreakEvenYear ? "be-h" : "")">ปี @y.Year</th> }</tr></thead>
+        <tbody>
+            @foreach (var (key, label, f) in Lines)
+            {
+                <tr class="@key">
+                    <td class="l">@label</td>
+                    @foreach (var y in years)
+                    {
+                        var v = f(y);
+                        <td class="@CellClass(key, y, v)">@(Math.Abs(v) < 0.5m ? "-" : N0(v))</td>
+                    }
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    [Parameter, EditorRequired] public CcdsResult Result { get; set; } = default!;
+    /// <summary>แบ่งตารางเป็นช่วงละกี่ปี (รายงาน A4 ใช้ 10 ปี ไม่ให้ล้นความกว้างกระดาษ) — null = ตารางเดียว</summary>
+    [Parameter] public int? YearsPerTable { get; set; }
+
+    private IEnumerable<List<YearRow>> Chunks() =>
+        YearsPerTable is int n && n > 0 && Result.Years.Count > n
+            ? Result.Years.Chunk(n).Select(c => c.ToList())
+            : new[] { Result.Years };
+
+    private static readonly (string Key, string Label, Func<YearRow, decimal> F)[] Lines =
+    {
+        ("saving", "Saving ค่าใช้จ่าย", y => y.Saving),
+        ("pm", "หัก ค่า PM", y => -y.Pm),
+        ("freed", "ไม่ต้องจ่าย Leasing", y => y.LeasingFreed),
+        ("net", "สุทธิรายปี", y => y.Net),
+        ("cum", "สะสม", y => y.Cumulative),
+    };
+
+    private string CellClass(string key, YearRow y, decimal v)
+    {
+        if (v <= -0.5m) return "neg";
+        var be = Result.BreakEvenYear;
+        return key switch
+        {
+            "net" when be is int b && y.Year >= b && v >= 0.5m => y.Year == b ? "pos be" : "pos",
+            "cum" when v >= 0.5m => "cum",
+            _ => "",
+        };
+    }
+}

@@ -1,0 +1,41 @@
+@* popup ยืนยันของโปรแกรมเอง (ใช้แทน window.confirm ซึ่งบางที่ เช่น Artifact บน claude.ai ปิดไว้) *@
+@if (Visible)
+{
+    <div class="dlg-backdrop" @onclick="Cancel">
+        <div class="dlg" role="alertdialog" aria-modal="true" aria-labelledby="dlg-title" @onclick:stopPropagation="true" @onkeydown="Key">
+            <div class="dlg-icon @(Danger ? "danger" : "")"><Icon Name="@(Danger ? "trash" : "info")" /></div>
+            <div class="dlg-body">
+                <h2 id="dlg-title">@Title</h2>
+                <div class="dlg-msg">@ChildContent</div>
+            </div>
+            <div class="dlg-actions">
+                <button @ref="cancelBtn" class="btn" @onclick="Cancel">ยกเลิก</button>
+                <button class="btn @(Danger ? "danger" : "primary")" @onclick="Confirm">@ConfirmText</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public string Title { get; set; } = "ยืนยัน";
+    [Parameter] public string ConfirmText { get; set; } = "ตกลง";
+    [Parameter] public bool Danger { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public EventCallback OnConfirm { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private ElementReference cancelBtn;
+    private bool focused;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // เปิด popup แล้วโฟกัสปุ่ม "ยกเลิก" ก่อน (กด Enter โดยไม่ตั้งใจจะไม่ลบ)
+        if (Visible && !focused) { focused = true; try { await cancelBtn.FocusAsync(); } catch { } }
+        if (!Visible) focused = false;
+    }
+
+    private Task Confirm() => OnConfirm.InvokeAsync();
+    private Task Cancel() => OnCancel.InvokeAsync();
+    private Task Key(KeyboardEventArgs e) => e.Key == "Escape" ? Cancel() : Task.CompletedTask;
+}

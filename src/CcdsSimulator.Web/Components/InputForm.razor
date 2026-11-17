@@ -1,0 +1,461 @@
+@using System.Text.Json
+@using System.Text.Json.Nodes
+@* ฟอร์มกรอกข้อมูล — ใช้ทั้งหน้าแก้ไขโครงการ และหน้าตั้งค่า (ซ่อนส่วนข้อมูลเฉพาะโครงการ) *@
+@{
+    int sec = 0;
+    var totalA = Input.ARecipes.Sum(r => r.Gallons);
+}
+
+@if (ShowProjectSections)
+{
+    <div class="card">
+        <h2><span class="num">@(++sec)</span>ข้อมูลทั่วไป@(UndoRedo("general"))</h2>
+        <div class="grid g3">
+            <label class="span2">ชื่อหน่วยไตเทียม / ลูกค้า<input @bind="Input.SiteName" @bind:after="Changed" /></label>
+            <label>Model<input @bind="Input.ModelName" @bind:after="Changed" /></label>
+            <label>ข้อมูลเดือน<input @bind="Input.Month" @bind:after="Changed" /></label>
+            <label>จำนวนเครื่อง<span class="inp" style="--u:7"><input type="number" @bind="Input.Machines" @bind:after="Changed" /><span class="u">เครื่อง</span></span></label>
+            <label>Treatment ต่อเดือน<span class="inp" style="--u:5"><input type="number" step="any" @bind="Input.TreatmentsPerMonth" @bind:after="Changed" /><span class="u">ครั้ง</span></span></label>
+        </div>
+    </div>
+}
+
+<div class="card">
+    <h2><span class="num">@(++sec)</span>@(ShowProjectSections ? "ปริมาณน้ำยาที่ใช้ต่อเดือน" : "สูตรน้ำยา A และการใช้ผงผสม")@(UndoRedo("usage"))</h2>
+    @if (ShowProjectSections)
+    {
+        <div class="mode-row">
+            <span class="muted">คำนวณจาก</span>
+            <div class="seg mode">
+                <button class="@(!Liters ? "on" : "")" @onclick="() => SetMode(UsageInputMode.Gallons)">จำนวนแกลลอน / เดือน</button>
+                <button class="@(Liters ? "on" : "")" @onclick="() => SetMode(UsageInputMode.LitersPerTreatment)">ปริมาณที่ใช้จริง (ลิตร / Treatment)</button>
+            </div>
+        </div>
+    }
+    @if (ShowProjectSections)
+    {
+        <div class="mode-hint">
+            @if (Liters)
+            {
+                <text>กรอก Treatment แล้วกรอก <b>แกลลอน / เดือน</b> — ลิตร / Treatment คำนวณให้อัตโนมัติ (= แกลลอน × ลิตรต่อแกลลอน ÷ Treatment; A @N1(Input.LiterPerGallonA) L, B @N1(Input.LiterPerGallonB) L) • หรือกรอกลิตร / Treatment เอง แกลลอนจะคำนวณกลับให้</text>
+            }
+            else
+            {
+                <text>ค่าใช้จ่าย = แกลลอน × ราคาต่อแกลลอนในข้อถัดไป • ช่อง Treatment ปล่อยว่างได้ (แบ่งตามสัดส่วนแกลลอน)</text>
+            }
+        </div>
+    }
+    <div class="x-hint @(Liters ? "" : "narrow")" aria-hidden="true">⇆ เลื่อนซ้าย-ขวาเพื่อกรอกข้อมูล</div>
+    <div class="tbl-x">
+    <table class="tbl xtbl">
+        <thead>
+            <tr>
+                <th>สูตร</th>
+                @if (ShowProjectSections)
+                {
+                    if (Liters)
+                    {
+                        <th>Treatment</th><th>แกลลอน / เดือน</th><th>ลิตร / Treatment <small>(คำนวณให้)</small></th>
+                    }
+                    else
+                    {
+                        <th>แกลลอน / เดือน</th><th>Treatment <small>(ว่าง=อัตโนมัติ)</small></th>
+                    }
+                }
+                <th>เมื่อใช้ CCDS</th><th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @for (int k = 0; k < Input.ARecipes.Count; k++)
+            {
+                var rec = Input.ARecipes[k];
+                var row = Result?.ARows.ElementAtOrDefault(k);
+                <tr>
+                    <td class="m-name"><input class="name" @bind="rec.Name" @bind:after="Changed" aria-label="ชื่อสูตร" /></td>
+                    @if (ShowProjectSections)
+                    {
+                        if (Liters)
+                        {
+                            <td class="m-n" data-label="Treatment"><input type="number" step="any" placeholder="กรอก" @bind="rec.Treatments" @bind:after="Changed" /></td>
+                            <td class="m-n" data-label="แกลลอน / เดือน"><input @key="galKey" type="number" step="any" value="@Gal(row?.Gallons ?? 0)" @onchange="e => GallonsA(rec, e)" /></td>
+                            <td class="m-n" data-label="ลิตร / Tx (คำนวณให้)"><input @key="galKey" class="derived" type="number" step="any" value="@Lit(rec.LitersPerTreatment)" @onchange="e => LitersA(rec, e)" /></td>
+                        }
+                        else
+                        {
+                            <td class="m-n" data-label="แกลลอน / เดือน"><input type="number" step="any" @bind="rec.Gallons" @bind:after="Changed" /></td>
+                            <td class="m-n" data-label="Treatment (ว่าง=อัตโนมัติ)"><input type="number" step="any" placeholder="@N0(CcdsCalculator.AutoTreatments(rec, totalA, Input.TreatmentsPerMonth))"
+                                       @bind="rec.Treatments" @bind:after="Changed" /></td>
+                        }
+                    }
+                    <td class="m-tog">
+                        <div class="seg icons">
+                            <button class="@(rec.UsePowder ? "on powder" : "")" title="ผงผสม" aria-label="ผงผสม" @onclick="() => SetPowder(rec, true)"><Icon Name="powder" /></button>
+                            <button class="@(!rec.UsePowder ? "on gl" : "")" title="แกลลอน" aria-label="แกลลอน" @onclick="() => SetPowder(rec, false)"><Icon Name="gallon" /></button>
+                        </div>
+                    </td>
+                    <td class="m-x"><button class="x" title="ลบ" aria-label="ลบสูตร @rec.Name" @onclick="() => Remove(rec)">×</button></td>
+                </tr>
+            }
+            @if (ShowProjectSections)
+            {
+                <tr>
+                    <td class="m-name"><b>B</b></td>
+                    @if (Liters)
+                    {
+                        <td class="r muted m-n" data-label="Treatment">@N0(Result?.Treatments ?? 0)</td>
+                        <td class="m-n" data-label="แกลลอน / เดือน"><input @key="galKey" type="number" step="any" value="@Gal(Result?.GallonsB ?? 0)" @onchange="GallonsB" /></td>
+                        <td class="m-n" data-label="ลิตร / Tx (คำนวณให้)"><input @key="galKey" class="derived" type="number" step="any" value="@Lit(Input.LitersPerTreatmentB)" @onchange="LitersB" /></td>
+                    }
+                    else
+                    {
+                        <td class="m-n" data-label="แกลลอน / เดือน"><input type="number" step="any" @bind="Input.GallonsB" @bind:after="Changed" /></td>
+                        <td class="r muted m-n" data-label="Treatment">@N0(Result?.Treatments ?? 0)</td>
+                    }
+                    <td class="m-tog"><span class="pill powder icon-pill" title="ผงผสม (B ใช้ผงผสมเสมอ)"><Icon Name="powder" /></span></td>
+                    <td class="m-x m-empty"></td>
+                </tr>
+            }
+        </tbody>
+        <tfoot>
+            <tr>
+                <td class="@(ShowProjectSections ? "" : "m-empty")">@(ShowProjectSections ? "รวมแกลลอน" : "")</td>
+                @if (ShowProjectSections)
+                {
+                    if (Liters) { <td class="m-empty"></td> }
+                    <td class="r">@N0(Result?.TotalGallons ?? 0)</td>
+                    <td class="m-empty"></td>
+                }
+                <td colspan="2" class="m-add"><button class="link" @onclick="Add">+ เพิ่มสูตร A</button></td>
+            </tr>
+        </tfoot>
+    </table>
+    </div>
+    @if (!string.IsNullOrEmpty(gallonsHint))
+    {
+        <div class="calc warn">@gallonsHint</div>
+    }
+    @if (ShowProjectSections && Result is not null)
+    {
+        var sumA = Result.ARows.Sum(x => x.Treatments);
+        if (Math.Abs(sumA - Input.TreatmentsPerMonth) >= 0.5m)
+        {
+            <div class="calc warn">Treatment สูตร A รวม <b>@N0(sumA)</b> ไม่เท่ากับ Treatment / เดือนในข้อ 1 (<b>@N0(Input.TreatmentsPerMonth)</b>) — โปรแกรมยังคำนวณต่อได้ แต่ควรตรวจตัวเลขอีกครั้ง</div>
+        }
+    }
+</div>
+
+<div class="card">
+    <h2><span class="num">@(++sec)</span>ราคาน้ำยาแบบแกลลอน (ปัจจุบัน)@(UndoRedo("prices"))</h2>
+    <div class="grid g3">
+        <label>ราคาน้ำยา A<span class="inp" style="--u:6"><input type="number" step="any" @bind="Input.PricePerGallonA" @bind:after="Changed" /><span class="u">บาท/GL</span></span></label>
+        <label>ราคาน้ำยา B<span class="inp" style="--u:6"><input type="number" step="any" @bind="Input.PricePerGallonB" @bind:after="Changed" /><span class="u">บาท/GL</span></span></label>
+        <label>ขายแกลลอนเปล่าคืน<span class="inp" style="--u:6"><input type="number" step="any" @bind="Input.GallonSalePrice" @bind:after="Changed" /><span class="u">บาท/GL</span></span></label>
+        <label>ขนาดแกลลอน A<span class="inp" style="--u:4"><input type="number" step="any" @bind="Input.LiterPerGallonA" @bind:after="Changed" /><span class="u">ลิตร</span></span></label>
+        <label>ขนาดแกลลอน B<span class="inp" style="--u:4"><input type="number" step="any" @bind="Input.LiterPerGallonB" @bind:after="Changed" /><span class="u">ลิตร</span></span></label>
+        <label>ราคา A แบบแกลลอนเมื่อใช้ CCDS<span class="inp" style="--u:6"><input type="number" step="any" @bind="Input.CcdsPricePerGallonA" @bind:after="Changed" /><span class="u">บาท/GL</span></span></label>
+    </div>
+</div>
+
+<div class="card">
+    <h2><span class="num">@(++sec)</span>ค่าเช่าซื้อเครื่อง CCDS (Leasing)@(UndoRedo("leasing"))</h2>
+    <div class="grid g3">
+        <label>ราคาเครื่อง<span class="inp" style="--u:3"><input type="number" step="any" @bind="Input.LeasingPrice" @bind:after="Changed" /><span class="u">บาท</span></span></label>
+        <label>ดอกเบี้ย Flat ต่อปี
+            <ComboNumber Value="Input.InterestRatePercent" Options="RateOptions" Unit="%" Format="0.00" OnChange="SetRate" />
+        </label>
+        <label>จำนวนปีผ่อน
+            <ComboNumber Value="Input.InstallmentYears" Options="YearOptions" Unit="ปี" Format="0" Step="1" OnChange="SetYears" />
+        </label>
+    </div>
+    @if (Result is not null)
+    {
+        <div class="calc">ดอกเบี้ยรวม <b>@N0(Result.LeasingTotalInterest)</b> • ยอดรวม <b>@N0(Result.LeasingTotal)</b> • ค่างวด <b>@N2(Result.LeasingPerMonth)</b> บาท/เดือน</div>
+    }
+</div>
+
+<div class="card">
+    <h2><span class="num">@(++sec)</span>ผงผสม (Powder)@(UndoRedo("powder"))</h2>
+    <table class="tbl rtbl">
+        <thead>
+            <tr><th></th><th>ราคา / กล่อง</th><th>ผสมได้ (ครั้ง/กล่อง)</th><th>ลิตร / ครั้ง</th>
+                @if (Result is not null) { <th class="r">Tx / กล่อง</th><th class="r">บาท / Tx</th> }
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var (name, p, res) in new[] { ("A", Input.PowderA, Result?.PowderA), ("B", Input.PowderB, Result?.PowderB) })
+            {
+                <tr>
+                    <td class="m-full m-pw"><b>@name</b></td>
+                    <td class="m-3" data-label="ราคา / กล่อง"><input type="number" step="any" @bind="p.CostPerBox" @bind:after="Changed" /></td>
+                    <td class="m-3" data-label="ผสมได้ (ครั้ง)"><input type="number" step="any" @bind="p.MixPerBox" @bind:after="Changed" /></td>
+                    <td class="m-3" data-label="ลิตร / ครั้ง"><input type="number" step="any" @bind="p.MixLiter" @bind:after="Changed" /></td>
+                    @if (res is not null)
+                    {
+                        <td class="r muted m-2 m-out" data-label="Tx / กล่อง">@N2(res.TreatmentsPerBox)</td>
+                        <td class="r m-2 m-out" data-label="บาท / Tx"><b>@N2(res.CostPerTreat)</b></td>
+                    }
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<div class="card">
+    <h2><span class="num">@(++sec)</span>ค่า PM และระยะเวลาวิเคราะห์@(UndoRedo("pm"))</h2>
+    <div class="grid g3">
+        <label>ค่า PM<span class="inp" style="--u:6"><input type="number" step="any" @bind="Input.PmPerYear" @bind:after="Changed" /><span class="u">บาท/ปี</span></span></label>
+        <label>Warranty<span class="inp" style="--u:2"><input type="number" min="0" @bind="Input.WarrantyYears" @bind:after="Changed" /><span class="u">ปี</span></span></label>
+        <label>ระยะเวลาวิเคราะห์<span class="inp" style="--u:2"><input type="number" min="1" max="30" @bind="Input.HorizonYears" @bind:after="Changed" /><span class="u">ปี</span></span></label>
+    </div>
+</div>
+
+<div class="card">
+    <h2><span class="num">@(++sec)</span>Utility (น้ำ / ไฟ)@(UndoRedo("utility"))</h2>
+    <div class="mode-row">
+        <span class="muted">ต้นทุนแบบ CCDS</span>
+        <div class="seg mode">
+            <button class="@(Input.IncludeUtility ? "on" : "")" @onclick="() => SetUtility(true)">นำมาคิดต้นทุน</button>
+            <button class="@(!Input.IncludeUtility ? "on" : "")" @onclick="() => SetUtility(false)">ไม่นำมาคิด</button>
+        </div>
+    </div>
+    @if (!Input.IncludeUtility)
+    {
+        <div class="mode-hint">ค่าน้ำและค่าไฟด้านล่างคำนวณให้ดูเท่านั้น ไม่รวมในค่าใช้จ่ายแบบ CCDS</div>
+    }
+    <div class="grid g3">
+        <label>ค่าน้ำ<span class="inp" style="--u:6"><input type="number" step="any" @bind="Input.WaterRate" @bind:after="Changed" /><span class="u">บาท/m³</span></span></label>
+        <label>น้ำ RO ต่อน้ำยา 1,000 ลิตร<span class="inp" style="--u:2"><input type="number" step="any" @bind="Input.WaterM3Per1000Liter" @bind:after="Changed" /><span class="u">m³</span></span></label>
+        <label>ค่าไฟ<span class="inp" style="--u:7"><input type="number" step="any" @bind="Input.ElectricRate" @bind:after="Changed" /><span class="u">บาท/kWh</span></span></label>
+        <label>วันทำงานต่อเดือน<span class="inp" style="--u:3"><input type="number" min="1" @bind="Input.DaysPerMonth" @bind:after="Changed" /><span class="u">วัน</span></span></label>
+        <label>ถังผสม A ต่อครั้ง<span class="inp" style="--u:4"><input type="number" step="any" @bind="Input.MixTankLiterA" @bind:after="Changed" /><span class="u">ลิตร</span></span></label>
+        <label>ถังผสม B ต่อครั้ง<span class="inp" style="--u:4"><input type="number" step="any" @bind="Input.MixTankLiterB" @bind:after="Changed" /><span class="u">ลิตร</span></span></label>
+    </div>
+    <div class="x-hint mt" aria-hidden="true">⇆ เลื่อนซ้าย-ขวาเพื่อกรอกข้อมูล</div>
+    <div class="tbl-x mt">
+    <table class="tbl xtbl">
+        <thead>
+            <tr><th>อุปกรณ์</th><th>kW</th><th>ชม./รอบ</th><th>จำนวน</th><th>รอบ/วัน <small>(ว่าง=อัตโนมัติ)</small></th>
+                @if (Result is not null) { <th class="r">kWh/เดือน</th> }
+            </tr>
+        </thead>
+        <tbody>
+            @for (int k = 0; k < Input.Equipment.Count; k++)
+            {
+                var e = Input.Equipment[k];
+                var er = Result?.EquipmentRows.ElementAtOrDefault(k);
+                <tr>
+                    <td class="m-full"><input class="name wide" @bind="e.Name" @bind:after="Changed" aria-label="ชื่ออุปกรณ์" /></td>
+                    <td class="m-3" data-label="kW"><input type="number" step="any" @bind="e.Kw" @bind:after="Changed" /></td>
+                    <td class="m-3" data-label="ชม. / รอบ"><input type="number" step="any" @bind="e.Hours" @bind:after="Changed" /></td>
+                    <td class="m-3" data-label="จำนวน"><input type="number" step="any" @bind="e.Qty" @bind:after="Changed" /></td>
+                    <td class="m-2" data-label="รอบ / วัน (ว่าง=อัตโนมัติ)"><input type="number" placeholder="@(er?.RunsPerDay.ToString("0") ?? "อัตโนมัติ")" @bind="e.RunsPerDayOverride" @bind:after="Changed" /></td>
+                    @if (er is not null) { <td class="r m-2 m-out" data-label="kWh / เดือน">@N1(er.KwhPerMonth)</td> }
+                </tr>
+            }
+        </tbody>
+    </table>
+    </div>
+    @if (Result is not null)
+    {
+        <div class="calc">น้ำ @N1(Result.WaterM3) m³ = <b>@N0(Result.WaterCost)</b> • ไฟ @N0(Result.ElectricKwh) kWh = <b>@N0(Result.ElectricCost)</b> • รวม Utility <b>@N0(Result.UtilityCost)</b> บาท/เดือน@(Input.IncludeUtility ? "" : " (ไม่นำมาคิดในต้นทุน)")</div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public CcdsInput Input { get; set; } = default!;
+    /// <summary>ผลคำนวณ (null = ไม่แสดงช่องที่คำนวณได้ เช่น หน้าตั้งค่า)</summary>
+    [Parameter] public CcdsResult? Result { get; set; }
+    [Parameter] public bool ShowProjectSections { get; set; } = true;
+    [Parameter] public EventCallback OnChange { get; set; }
+
+    private Task Changed()
+    {
+        // ตัดค่าให้อยู่ในช่วงที่ใช้ได้ทันที (เช่น ระยะเวลาวิเคราะห์ 1–30 ปี, ไม่ติดลบ) ก่อนบันทึก
+        CcdsCalculator.Sanitize(Input);
+        gallonsHint = null;
+        RecordHistory();
+        return OnChange.InvokeAsync();
+    }
+
+    // ================= Undo / Redo แยกตามข้อ =================
+    // แต่ละข้อจำ "ภาพข้อมูลเฉพาะของข้อนั้น" (JSON ของ property ในข้อ) ไว้เป็นประวัติ
+    // ย้อนกลับในข้อหนึ่งจึงไม่กระทบการแก้ไขในข้ออื่น
+
+    private const int MaxHistory = 50;
+
+    private static readonly Dictionary<string, string[]> SectionProps = new()
+    {
+        ["general"] = [nameof(CcdsInput.SiteName), nameof(CcdsInput.ModelName), nameof(CcdsInput.Month),
+                       nameof(CcdsInput.Machines), nameof(CcdsInput.TreatmentsPerMonth)],
+        ["usage"] = [nameof(CcdsInput.UsageMode), nameof(CcdsInput.ARecipes), nameof(CcdsInput.GallonsB),
+                     nameof(CcdsInput.LitersPerTreatmentB)],
+        ["prices"] = [nameof(CcdsInput.PricePerGallonA), nameof(CcdsInput.PricePerGallonB), nameof(CcdsInput.GallonSalePrice),
+                      nameof(CcdsInput.LiterPerGallonA), nameof(CcdsInput.LiterPerGallonB), nameof(CcdsInput.CcdsPricePerGallonA)],
+        ["leasing"] = [nameof(CcdsInput.LeasingPrice), nameof(CcdsInput.InterestRatePercent), nameof(CcdsInput.InstallmentYears)],
+        ["powder"] = [nameof(CcdsInput.PowderA), nameof(CcdsInput.PowderB)],
+        ["pm"] = [nameof(CcdsInput.PmPerYear), nameof(CcdsInput.WarrantyYears), nameof(CcdsInput.HorizonYears)],
+        ["utility"] = [nameof(CcdsInput.WaterRate), nameof(CcdsInput.WaterM3Per1000Liter), nameof(CcdsInput.ElectricRate),
+                       nameof(CcdsInput.DaysPerMonth), nameof(CcdsInput.MixTankLiterA), nameof(CcdsInput.MixTankLiterB),
+                       nameof(CcdsInput.Equipment), nameof(CcdsInput.IncludeUtility)],
+    };
+
+    private readonly Dictionary<string, List<string>> undo = SectionProps.Keys.ToDictionary(k => k, _ => new List<string>());
+    private readonly Dictionary<string, List<string>> redo = SectionProps.Keys.ToDictionary(k => k, _ => new List<string>());
+    private readonly Dictionary<string, string> current = new();
+    private CcdsInput? tracked;
+
+    protected override void OnParametersSet()
+    {
+        // เปิดโครงการอื่น / คืนค่าจากโรงงาน → เริ่มประวัติใหม่
+        if (ReferenceEquals(tracked, Input)) return;
+        tracked = Input;
+        foreach (var k in SectionProps.Keys) { undo[k].Clear(); redo[k].Clear(); }
+        var node = ToNode(Input);
+        foreach (var k in SectionProps.Keys) current[k] = Slice(node, k);
+    }
+
+    private void RecordHistory()
+    {
+        var node = ToNode(Input);
+        foreach (var k in SectionProps.Keys)
+        {
+            var now = Slice(node, k);
+            if (now == current[k]) continue;
+            undo[k].Add(current[k]);
+            if (undo[k].Count > MaxHistory) undo[k].RemoveAt(0);
+            redo[k].Clear();
+            current[k] = now;
+        }
+    }
+
+    private Task Undo(string k) => Step(k, undo[k], redo[k]);
+    private Task Redo(string k) => Step(k, redo[k], undo[k]);
+
+    private Task Step(string k, List<string> from, List<string> to)
+    {
+        if (from.Count == 0) return Task.CompletedTask;
+        to.Add(current[k]);
+        current[k] = from[^1];
+        from.RemoveAt(from.Count - 1);
+        Apply(k, current[k]);
+        return OnChange.InvokeAsync();   // บันทึกอัตโนมัติ + คำนวณใหม่
+    }
+
+    /// <summary>นำค่าของข้อ k จากภาพที่จำไว้ กลับมาใส่ใน Input (object เดิม เพื่อให้หน้าแม่ยังอ้างถึงได้)</summary>
+    private void Apply(string k, string sliceJson)
+    {
+        var slice = JsonNode.Parse(sliceJson)!.AsObject();
+        var all = ToNode(Input);
+        foreach (var p in SectionProps[k]) all[p] = slice[p]?.DeepClone();
+        var merged = all.Deserialize<CcdsInput>()!;
+        foreach (var p in SectionProps[k])
+        {
+            var prop = typeof(CcdsInput).GetProperty(p)!;
+            prop.SetValue(Input, prop.GetValue(merged));
+        }
+    }
+
+    private static JsonObject ToNode(CcdsInput i) => JsonSerializer.SerializeToNode(i)!.AsObject();
+
+    private static string Slice(JsonObject node, string k)
+    {
+        var o = new JsonObject();
+        foreach (var p in SectionProps[k]) o[p] = node[p]?.DeepClone();
+        return o.ToJsonString();
+    }
+
+    private RenderFragment UndoRedo(string k) =>
+        @<span class="ur">
+            <button class="ur-btn" title="ย้อนกลับ (Undo) ในข้อนี้" aria-label="ย้อนกลับ" disabled="@(undo[k].Count == 0)" @onclick="() => Undo(k)">↶</button>
+            <button class="ur-btn" title="ทำซ้ำ (Redo) ในข้อนี้" aria-label="ทำซ้ำ" disabled="@(redo[k].Count == 0)" @onclick="() => Redo(k)">↷</button>
+        </span>;
+
+    private bool Liters => Input.UsageMode == UsageInputMode.LitersPerTreatment;
+
+    // ---------- โหมดลิตร: กรอกแกลลอน/เดือน → คำนวณลิตร/Treatment ----------
+    private string? gallonsHint;
+    private static string Gal(decimal g) => Math.Round(g, 2).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+    private static decimal? ParseNum(ChangeEventArgs e) =>
+        decimal.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : null;
+
+    // ลิตร/Treatment เก็บละเอียด 6 ตำแหน่ง (ให้แกลลอนตรง) แต่แสดง 3 ตำแหน่ง; ถ้ากรอกเองจะใช้ค่าที่กรอก
+    private static string Lit(decimal l) => Math.Round(l, 3).ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+
+    private async Task LitersA(ARecipeInput rec, ChangeEventArgs e)
+    {
+        if (ParseNum(e) is not decimal l) { galKey++; return; }
+        rec.LitersPerTreatment = l; gallonsHint = null;
+        await Changed();
+    }
+
+    private async Task LitersB(ChangeEventArgs e)
+    {
+        if (ParseNum(e) is not decimal l) { galKey++; return; }
+        Input.LitersPerTreatmentB = l; gallonsHint = null;
+        await Changed();
+    }
+
+    private async Task GallonsA(ARecipeInput rec, ChangeEventArgs e)
+    {
+        if (ParseNum(e) is not decimal g) { galKey++; return; }   // ช่องว่าง/อ่านไม่ได้ → แสดงค่าจริงกลับมา
+        bool ok = CcdsCalculator.SetGallonsA(Input, rec, g);
+        await Changed();
+        if (!ok) Reject($"กรอก Treatment ของสูตร {rec.Name} ก่อน จึงจะคำนวณลิตร / Treatment จากแกลลอนได้");
+    }
+
+    private async Task GallonsB(ChangeEventArgs e)
+    {
+        if (ParseNum(e) is not decimal g) { galKey++; return; }
+        bool ok = CcdsCalculator.SetGallonsB(Input, g);
+        await Changed();
+        if (!ok) Reject("กรอก Treatment ต่อเดือนในข้อ 1 ก่อน จึงจะคำนวณลิตร / Treatment ของ B จากแกลลอนได้");
+    }
+
+    /// <summary>ไม่รับค่าที่กรอก: แสดงข้อความ และวาดช่องใหม่ให้กลับเป็นค่าจริง (ไม่ค้างตัวเลขที่ไม่ได้ใช้)</summary>
+    private int galKey;
+    private void Reject(string hint) { gallonsHint = hint; galKey++; }
+
+    /// <summary>สลับโหมดการกรอก — แปลงค่าเดิมให้ผลคำนวณเท่าเดิม (สถานที่ใหม่เริ่มที่โหมดแกลลอนเสมอ)</summary>
+    private async Task SetMode(UsageInputMode mode)
+    {
+        if (!CcdsCalculator.SwitchMode(Input, mode))
+        {
+            gallonsHint = "กรอก Treatment ต่อเดือนในข้อ 1 (และ Treatment ของทุกสูตรที่มีแกลลอน) ก่อน จึงจะสลับเป็นโหมดลิตร / Treatment ได้ — ข้อมูลเดิมยังอยู่ครบ";
+            return;
+        }
+        await Changed();
+    }
+
+    // ---------- ดอกเบี้ย ↔ ปีผ่อน (เลือกอย่างหนึ่ง อีกอย่างเปลี่ยนตามตาราง LeasingRates) ----------
+    private static readonly decimal[] RateOptions = LeasingRates.Table.Select(t => t.RatePercent).ToArray();
+    private static readonly decimal[] YearOptions = LeasingRates.Table.Select(t => (decimal)t.Years).ToArray();
+
+    /// <summary>ดอกเบี้ยตรงกับตาราง → ปีผ่อนเปลี่ยนตาม, ค่าที่พิมพ์เอง (ไม่อยู่ในตาราง) → ไม่เปลี่ยนปีผ่อน</summary>
+    private Task SetRate(decimal rate)
+    {
+        Input.InterestRatePercent = rate;
+        if (LeasingRates.YearsFor(rate) is int y) Input.InstallmentYears = y;
+        return Changed();
+    }
+
+    /// <summary>ปีผ่อนตรงกับตาราง → ดอกเบี้ยเปลี่ยนตาม, ค่าที่พิมพ์เอง → ไม่เปลี่ยนดอกเบี้ย</summary>
+    private Task SetYears(decimal years)
+    {
+        var y = (int)Math.Round(Math.Max(0, years));
+        Input.InstallmentYears = y;
+        if (LeasingRates.RateFor(y) is decimal rate) Input.InterestRatePercent = rate;
+        return Changed();
+    }
+
+    private Task SetUtility(bool v) { Input.IncludeUtility = v; return Changed(); }
+    private Task SetPowder(ARecipeInput r, bool v) { r.UsePowder = v; return Changed(); }
+    private Task Remove(ARecipeInput r) { Input.ARecipes.Remove(r); return Changed(); }
+    /// <summary>เพิ่มสูตร A ชื่อถัดไปที่ยังไม่ซ้ำ (A1, A2, … ข้ามชื่อที่มีอยู่แล้ว)</summary>
+    private Task Add()
+    {
+        int n = Input.ARecipes.Count + 1;
+        while (Input.ARecipes.Any(r => string.Equals(r.Name?.Trim(), $"A{n}", StringComparison.OrdinalIgnoreCase))) n++;
+        Input.ARecipes.Add(new ARecipeInput { Name = $"A{n}" });
+        return Changed();
+    }
+}

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CCDS Feasibility Simulator</title>
+    <base href="/" />
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="css/app.css" />
+    <script>
+        // ใส่ธีมที่เลือกไว้ก่อนวาดหน้า (กันหน้ากะพริบ)
+        try { var t = localStorage.getItem("ccds.theme"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch (e) { }
+    </script>
+</head>
+<body>
+    <div id="app"><div class="boot">กำลังโหลด CCDS Feasibility Simulator…</div></div>
+
+    <div id="blazor-error-ui">
+        เกิดข้อผิดพลาด <a href="" class="reload">โหลดหน้าใหม่</a>
+        <a class="dismiss">🗙</a>
+    </div>
+    <script src="js/html-to-image.min.js"></script>
+    <script src="js/app.js"></script>
+    <script src="_framework/blazor.webassembly.js"></script>
+</body>
+</html>

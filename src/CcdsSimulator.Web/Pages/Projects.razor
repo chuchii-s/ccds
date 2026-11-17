@@ -1,0 +1,125 @@
+@page "/"
+@inject ProjectStore Store
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<PageTitle>สถานที่เสนอระบบ CCDS</PageTitle>
+
+@* ภาพพื้นหลังจาง ๆ (เครื่อง CCDS) เฉพาะหน้านี้ *@
+<div class="page-bg" aria-hidden="true"></div>
+
+<div class="page-wrap">
+    <div class="page-head">
+        <div>
+            <h1 class="with-logo"><span class="h-logo"><Icon Name="site" /></span>สถานที่เสนอระบบ CCDS</h1>
+            <p class="muted">ข้อมูลเก็บในเบราว์เซอร์นี้เท่านั้น (ไม่ส่งขึ้น server)</p>
+        </div>
+        <div class="head-actions">
+            <button class="btn primary" @onclick="NewBlank">+ สถานที่</button>
+            <button class="btn" @onclick="Backup" disabled="@(projects.Count == 0)">สำรองข้อมูลทั้งหมด</button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(message)) { <div class="msg">@message</div> }
+    @if (!loading && Store.UnreadableCount > 0) { <div class="msg warn">มีข้อมูลสถานที่ @Store.UnreadableCount รายการที่อ่านไม่ได้ (อาจเป็นรูปแบบเก่าหรือข้อมูลเสีย) — ยังเก็บไว้ไม่ลบ และรวมอยู่ในไฟล์ "สำรองข้อมูลทั้งหมด"</div> }
+    @if (!Store.StorageAvailable) { <div class="msg warn">เบราว์เซอร์นี้ไม่อนุญาตให้บันทึกข้อมูล (อาจเป็นโหมดไม่ระบุตัวตน) ข้อมูลจะหายเมื่อปิดหน้าเว็บ</div> }
+
+    @if (loading)
+    {
+        <div class="card empty">กำลังโหลด…</div>
+    }
+    else if (projects.Count == 0)
+    {
+        <div class="card empty">
+            <h2>ยังไม่มีสถานที่</h2>
+            <p>กด <b>+ สถานที่</b> เพื่อเพิ่มสถานที่ที่จะเสนอระบบ CCDS</p>
+        </div>
+    }
+    else
+    {
+        <div class="card proj-wrap">
+            <table class="tbl list proj">
+                <thead>
+                    <tr>
+                        <th>ชื่อสถานที่</th><th class="r">เครื่อง</th><th class="r">Tx/เดือน</th>
+                        <th class="r">Saving / เดือน</th><th class="r">สะสม (ปี)</th><th>แก้ไขล่าสุด</th><th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in projects)
+                    {
+                        var r = CcdsCalculator.Calculate(p.Input);
+                        <tr data-s="@Cls(r.SavingPerMonth)">
+                            <td class="p-name">
+                                <span class="p-ico" aria-hidden="true"><Icon Name="building" /></span>
+                                <a class="pname" href="project/@p.Id">@p.DisplayName</a>
+                                <div class="muted small">@Dash(p.Input.ModelName) • ข้อมูลเดือน @Dash(p.Input.Month)<span class="p-when"> • แก้ไข @ThaiDateTime(p.UpdatedAt, shortYear: true)</span></div>
+                            </td>
+                            <td class="r p-st p-chip" data-label="เครื่อง" data-unit="เครื่อง">@N0(p.Input.Machines)</td>
+                            <td class="r p-st p-chip" data-label="Tx / เดือน" data-unit="Tx / เดือน">@N0(p.Input.TreatmentsPerMonth)</td>
+                            <td class="r p-st p-tile p-sv @Cls(r.SavingPerMonth)" data-label="Saving / เดือน"><b>@Signed(r.SavingPerMonth)</b></td>
+                            <td class="r p-st p-tile p-cum @Cls(r.SavingHorizon)" data-label="สะสม @p.Input.HorizonYears ปี">@Signed(r.SavingHorizon) <span class="muted small p-hide">(@p.Input.HorizonYears)</span></td>
+                            <td class="muted small p-date"><span class="p-ico-s" aria-hidden="true"><Icon Name="clock" /></span>@ThaiDateTime(p.UpdatedAt, shortYear: true)</td>
+                            <td class="r nowrap p-act">
+                                <a class="act p-btn" href="project/@p.Id"><span class="p-ico-s" aria-hidden="true"><Icon Name="edit" /></span>แก้ไข</a>
+                                <a class="act p-btn" href="project/@p.Id/report"><span class="p-ico-s" aria-hidden="true"><Icon Name="report" /></span>รายงาน</a>
+                                <button class="act icon" title="ทำสำเนา" aria-label="ทำสำเนา @p.DisplayName" @onclick="() => Duplicate(p)"><Icon Name="copy" /></button>
+                                <button class="act icon del" title="ลบ" aria-label="ลบ @p.DisplayName" @onclick="() => pendingDelete = p"><Icon Name="trash" /></button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+<ConfirmDialog Visible="pendingDelete is not null" Title="ลบสถานที่นี้?" ConfirmText="ลบ" Danger="true"
+               OnConfirm="ConfirmDelete" OnCancel="() => pendingDelete = null">
+    @if (pendingDelete is { } d)
+    {
+        var dr = CcdsCalculator.Calculate(d.Input);
+        <p><b>@d.DisplayName</b></p>
+        <p class="muted small">@N0(d.Input.Machines) เครื่อง • @N0(d.Input.TreatmentsPerMonth) Tx/เดือน • Saving @Signed(dr.SavingPerMonth) บาท/เดือน • แก้ไขล่าสุด @ThaiDateTime(d.UpdatedAt, shortYear: true)</p>
+        <p class="warn-text">ข้อมูลของสถานที่นี้จะถูกลบออกจากเบราว์เซอร์ และกู้คืนไม่ได้</p>
+    }
+</ConfirmDialog>
+
+@code {
+    private List<Project> projects = new();
+    private bool loading = true;
+    private string? message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        projects = await Store.GetAllAsync();
+        loading = false;
+    }
+
+    private async Task NewBlank()
+    {
+        var p = await Store.CreateAsync(Presets.NewFrom(await Store.GetDefaultsAsync()));
+        Nav.NavigateTo($"project/{p.Id}");
+    }
+
+    private async Task Duplicate(Project p)
+    {
+        await Store.DuplicateAsync(p);
+        projects = await Store.GetAllAsync();
+        message = $"ทำสำเนา \"{p.DisplayName}\" แล้ว";
+    }
+
+    private Project? pendingDelete;
+
+    private async Task ConfirmDelete()
+    {
+        var p = pendingDelete!;
+        pendingDelete = null;
+        await Store.DeleteAsync(p.Id);
+        projects = await Store.GetAllAsync();
+        message = $"ลบ \"{p.DisplayName}\" แล้ว";
+    }
+
+    private async Task Backup() =>
+        await JS.InvokeVoidAsync("ccds.download", $"CCDS_backup_{DateTime.Now:yyyyMMdd}.json", await Store.ExportAllAsync(), "application/json");
+}

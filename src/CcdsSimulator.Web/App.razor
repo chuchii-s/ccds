@@ -1,0 +1,11 @@
+<Router AppAssembly="@typeof(App).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+    </Found>
+    <NotFound>
+        @* ที่อยู่ที่ไม่รู้จัก (เช่น เปิดจากลิงก์เก่า) แสดงหน้ารายการโครงการแทนหน้าข้อผิดพลาด *@
+        <LayoutView Layout="@typeof(MainLayout)">
+            <CcdsSimulator.Web.Pages.Projects />
+        </LayoutView>
+    </NotFound>
+</Router>
