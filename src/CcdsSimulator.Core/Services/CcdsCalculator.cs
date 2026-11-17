@@ -428,6 +428,13 @@ public static class CcdsCalculator
     /// <summary>ป้ายแถวค่าผงผสม เช่น "ผงผสมสูตร A2 & B"</summary>
     public static string PowderLabel(CcdsResult r) => "ผงผสมสูตร " + PowderRecipeNames(r);
 
+    /// <summary>
+    /// ปีแรกที่ตัวเลข "หลังผ่อนครบ (หัก PM)" ใช้ได้จริง = หลังผ่อนครบ "และ" หมดประกันแล้ว
+    /// (ถ้าประกันยาวกว่าระยะผ่อน ปีหลังผ่อนครบช่วงแรกยังไม่มีค่า PM)
+    /// </summary>
+    public static int AfterLeaseFromYear(CcdsInput i) =>
+        Math.Max(Math.Clamp(i.InstallmentYears, 1, 30), Math.Clamp(i.WarrantyYears, 0, 30)) + 1;
+
     /// <summary>ทศนิยมของลิตร/Treatment ที่คำนวณจากแกลลอน (6 ตำแหน่ง → แปลงกลับเป็นแกลลอนคลาดไม่ถึง 0.001; ช่องกรอกแสดง 3 ตำแหน่ง)</summary>
     public const int LiterDecimals = 6;
 

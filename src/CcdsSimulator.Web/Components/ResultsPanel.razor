@@ -41,8 +41,8 @@
         <li><span>Cost Saving ช่วงผ่อน @i.InstallmentYears ปี</span><b class="@Cls(r.SavingDuringLease)">@Signed(r.SavingDuringLease, 2)</b></li>
         <li><span>หัก PM หลังหมด Warranty</span><b class="neg">@Signed(-r.PmDuringLease, 2)</b></li>
         <li><span>สุทธิเมื่อผ่อนครบ</span><b class="@Cls(r.SavingDuringLeaseAfterPm)">@Signed(r.SavingDuringLeaseAfterPm, 2)</b></li>
-        <li><span>ปีที่ @(i.InstallmentYears + 1)+ เดือนละ <small>(หัก PM แล้ว)</small></span><b class="@Cls(r.SavingPerMonthAfterLease)">@Signed(r.SavingPerMonthAfterLease, 2)</b></li>
-        <li><span>ปีที่ @(i.InstallmentYears + 1)+ ปีละ</span><b class="@Cls(r.SavingPerYearAfterLease)">@Signed(r.SavingPerYearAfterLease, 2)</b></li>
+        <li><span>ปีที่ @CcdsCalculator.AfterLeaseFromYear(i)+ เดือนละ <small>(หัก PM แล้ว)</small></span><b class="@Cls(r.SavingPerMonthAfterLease)">@Signed(r.SavingPerMonthAfterLease, 2)</b></li>
+        <li><span>ปีที่ @CcdsCalculator.AfterLeaseFromYear(i)+ ปีละ</span><b class="@Cls(r.SavingPerYearAfterLease)">@Signed(r.SavingPerYearAfterLease, 2)</b></li>
         <li class="total"><span>ครบ @i.HorizonYears ปี Cost Saving</span><b class="@Cls(r.SavingHorizon)">@Signed(r.SavingHorizon, 2)</b></li>
     </ul>
     <div class="panel-report">

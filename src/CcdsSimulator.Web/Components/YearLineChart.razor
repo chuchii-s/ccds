@@ -5,12 +5,16 @@
     int h = r.Years.Count;
     var vals = new List<decimal> { 0m };
     vals.AddRange(r.Years.Select(y => y.Cumulative));
-    decimal lo = Math.Min(0, vals.Min()), hi = Math.Max(0, vals.Max());
-    if (hi == lo) hi = lo + 1;
+    decimal vMin = vals.Min(), vMax = vals.Max();
+    decimal lo = Math.Min(0, vMin), hi = Math.Max(0, vMax);
+    if (hi == lo) hi = lo + 1000;                       // ทุกปีเป็น 0 (ยังไม่มีข้อมูล) → แกนอ่านง่าย
     decimal step = Nice((hi - lo) / 4);
     lo = Math.Floor(lo / step) * step;
     hi = Math.Ceiling(hi / step) * step;
     if (hi == lo) hi = lo + step;
+    // เว้นที่ให้ตัวเลขใต้จุดต่ำสุด/เหนือจุดสูงสุด ไม่ให้ทับป้ายปีหรือป้ายแถบด้านบน
+    if (vMin < 0 && vMin - lo < (hi - lo) * 0.12m) lo -= step;
+    if (vMax > 0 && hi - vMax < (hi - lo) * 0.08m) hi += step;
     double X(int i) => L + (W - L - R) * i / (double)Math.Max(1, h);
     double Y(decimal v) => T + (H - T - B) * (double)((hi - v) / (hi - lo));
     double y0 = Y(0);
@@ -20,6 +24,16 @@
     int? be = r.BreakEvenYear;
     double gap = (W - L - R) / Math.Max(1, h);          // ระยะห่างระหว่างปี (หน่วย viewBox)
     int k = gap >= 46 ? 1 : gap >= 23 ? 2 : 5;           // แสดงค่าทุก k ปี ไม่ให้ตัวเลขซ้อนกัน
+    // เลือกปีที่แสดงตัวเลข: ปีสุดท้าย, ปีผ่อนครบ, ปีแรก, แล้วทุก k ปี — ข้ามปีที่ใกล้ป้ายที่เลือกแล้วเกินไป
+    // (ปีคืนทุนแสดงเสมอ: ตัวเลขวางขวาล่างของจุด จึงไม่ชนตัวเลขปีอื่นที่อยู่เหนือจุด)
+    var labeled = new SortedSet<int>();
+    var order = new List<int> { h };
+    if (n < h) order.Add(n);
+    order.Add(1);
+    for (int y = k; y <= h; y += k) order.Add(y);
+    foreach (var y in order)
+        if (y >= 1 && y <= h && labeled.All(o => Math.Abs(X(o) - X(y)) >= 40)) labeled.Add(y);
+    bool showWr = WarrantyYear is int wy0 && wy0 > 0 && wy0 < h && wy0 != n;
     bool allYears = gap >= 18;                           // ป้ายปีแสดงครบทุกปีถ้ามีที่พอ
     bool shortYr = gap < 40;                             // ที่แคบ: "3" แทน "ปี 3"
     var id = "lc" + GetHashCode().ToString("x");
@@ -37,14 +51,35 @@
         @for (decimal v = lo; v <= hi + step / 2; v += step)
         {
             <line x1="@L" x2="@(W - R)" y1="@F(Y(v))" y2="@F(Y(v))" class="@(v == 0 ? "zero" : "grid")" />
-            @Txt(F(L - 6), F(Y(v) + 3.5), "ax", "end", v == 0 ? "0" : Short(v))
+            @Txt(F(L - 6), F(Y(v) + 3.5), "ax", "end", Axis(v, lo, hi))
+        }
+
+        @* แถบช่วงเวลา: ช่วงผ่อน / หลังผ่อนครบ *@
+        @if (Phases)
+        {
+            int ln = Math.Min(n, h);
+            double wl = X(ln) - X(0), wo = X(h) - X(n);
+            <rect x="@F(X(0))" y="0" width="@F(wl)" height="@F(H - B)" class="ph lease" />
+            @if (PhaseLabel(wl, $"ช่วงผ่อน {n} ปี", "ผ่อน") is string tl) { @Txt(F(X(0) + 6), "13", "phl lease", "start", tl) }
+            @if (n < h)
+            {
+                <rect x="@F(X(n))" y="0" width="@F(wo)" height="@F(H - B)" class="ph own" />
+                @if (PhaseLabel(wo, "ผ่อนครบ • เครื่องเป็นของลูกค้า", "ผ่อนครบ") is string to) { @Txt(F(X(n) + 6), "13", "phl own", "start", to) }
+            }
         }
 
         @* ผ่อนครบ *@
         @if (n < h)
         {
-            <line x1="@F(X(n))" x2="@F(X(n))" y1="@T" y2="@(H - B)" class="mark" />
-            @Txt(F(X(n) + 4), F(T + 9), "mk", "start", "ผ่อนครบ")
+            <line x1="@F(X(n))" x2="@F(X(n))" y1="@(Phases ? 0 : T)" y2="@(H - B)" class="mark" />
+            @if (!Phases) { @Txt(F(X(n) + 4), F(T + 9), "mk", "start", "ผ่อนครบ") }
+        }
+
+        @* หมดประกัน (เริ่มมีค่าบำรุงรักษา) *@
+        @if (showWr && WarrantyYear is int w)
+        {
+            <line x1="@F(X(w))" x2="@F(X(w))" y1="@T" y2="@(H - B)" class="mark wr" />
+            @Txt(F(X(w) + 4), F(T + 9), "mk wr", "start", "หมดประกัน")
         }
 
         @* พื้นและเส้น (เขียวเหนือศูนย์ / แดงใต้ศูนย์) *@
@@ -58,7 +93,7 @@
         {
             var v = vals[i];
             bool isBe = be == i;
-            bool label = i % k == 0 || i == h || i == 1 || isBe;
+            bool label = labeled.Contains(i) || isBe;
             <circle cx="@F(X(i))" cy="@F(Y(v))" r="@(isBe ? 5.2 : 3.2)" class="pt @(v >= 0 ? "pos" : "neg") @(isBe ? "be" : "")" />
             @if (label)
             {
@@ -80,11 +115,13 @@
         @if (be is int b && b <= h)
         {
             // วางป้ายไว้ซ้ายของจุด (ด้านที่เส้นลงไปทางศูนย์ จึงไม่ทับตัวเลขปีถัดไป) — ปีแรกวางขวาแทน
-            bool left = b > 1;
-            @Txt(F(left ? X(b) - 9 : X(b) + 9), F(Math.Max(T + 9, Y(vals[b]) + 4)), "beL", left ? "end" : "start", $"คืนทุนปีที่ {b}")
+            bool left = b > 1 || b == h;
+            // ปีแรก: ตัวเลขอยู่เหนือจุด → วางป้ายขวาล่าง (ใต้เส้นที่กำลังขึ้น)
+            double by = left ? Math.Max(T + 9, Y(vals[b]) + 4) : Math.Min(H - B - 4, Y(vals[b]) + 16);
+            @Txt(F(left ? X(b) - 9 : X(b) + 7), F(by), "beL", left ? "end" : "start", $"คืนทุนปีที่ {b}")
         }
     </svg>
-    <div class="cap">เส้น = ยอด Cost Saving สะสม • เส้นประ = ผ่อนครบ • จุดใหญ่ = ปีที่เริ่มคืนทุน@(shortYr ? " • แกนล่าง = ปีที่" : "") • M = ล้านบาท, K = พันบาท</div>
+    <div class="cap">เส้น = ยอด Cost Saving สะสม@(Dashes(showWr, n < h)) • จุดใหญ่ = ปีที่เริ่มคืนทุน@(shortYr ? " • แกนล่าง = ปีที่" : "") • M = ล้านบาท, K = พันบาท</div>
 </div>
 
 @code {
@@ -94,11 +131,39 @@
     [Parameter] public double W { get; set; } = 720;
     [Parameter] public double H { get; set; } = 220;
 
-    private const double L = 52, R = 18, T = 16, B = 26;
+    /// <summary>แสดงแถบพื้นหลัง "ช่วงผ่อน / หลังผ่อนครบ" (หน้า Executive Summary)</summary>
+    [Parameter] public bool Phases { get; set; }
+    /// <summary>ปีที่หมดประกัน — แสดงเส้นประ "หมดประกัน" (null = ไม่แสดง)</summary>
+    [Parameter] public int? WarrantyYear { get; set; }
+
+    private const double L = 52, R = 18, B = 26;
+    private double T => Phases ? 30 : 16;
 
     /// <summary>ข้อความใน SVG (Razor ใช้แท็ก text เองไม่ได้ในบล็อกโค้ด)</summary>
     private static MarkupString Txt(string x, string y, string cls, string anchor, string text) =>
         new($"<text x=\"{x}\" y=\"{y}\" class=\"{cls}\" text-anchor=\"{anchor}\">{System.Net.WebUtility.HtmlEncode(text)}</text>");
+
+    /// <summary>ป้ายแถบช่วงเวลา: เต็ม / สั้น / ไม่แสดง ตามความกว้างแถบ (ประมาณ 5.6 หน่วยต่อตัวอักษร)</summary>
+    private static string? PhaseLabel(double width, string full, string shortText) =>
+        width - 10 >= full.Length * 5.6 ? full : width - 10 >= shortText.Length * 5.6 ? shortText : null;
+
+    private static string Dashes(bool warranty, bool lease) =>
+        (warranty, lease) switch
+        {
+            (true, true) => " • เส้นประ = หมดประกัน / ผ่อนครบ",
+            (true, false) => " • เส้นประ = หมดประกัน",
+            (false, true) => " • เส้นประ = ผ่อนครบ",
+            _ => ""
+        };
+
+    /// <summary>ค่าแกน Y: หน่วยเดียวทั้งแกน (M / K) ทศนิยมเท่าที่จำเป็น เช่น +2.5K, +1.5M</summary>
+    private static string Axis(decimal v, decimal lo, decimal hi)
+    {
+        if (v == 0) return "0";
+        decimal m = Math.Max(Math.Abs(lo), Math.Abs(hi));
+        var (div, unit) = m >= 1_000_000m ? (1_000_000m, "M") : m >= 1_000m ? (1_000m, "K") : (1m, "");
+        return (v > 0 ? "+" : "-") + (Math.Abs(v) / div).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + unit;
+    }
 
     private static string F(double v) => v.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
 

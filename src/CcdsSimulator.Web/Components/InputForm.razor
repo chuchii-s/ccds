@@ -207,6 +207,13 @@
         <label>Warranty<span class="inp" style="--u:2"><input type="number" min="0" @bind="Input.WarrantyYears" @bind:after="Changed" /><span class="u">ปี</span></span></label>
         <label>ระยะเวลาวิเคราะห์<span class="inp" style="--u:2"><input type="number" min="1" max="30" @bind="Input.HorizonYears" @bind:after="Changed" /><span class="u">ปี</span></span></label>
     </div>
+    <div class="mode-row" style="margin-top:14px">
+        <span class="muted">ส่วนเผื่อความเสี่ยงในรายงาน <small>(ถ้าจำนวนคนไข้เปลี่ยน)</small></span>
+        <div class="seg mode">
+            <button class="@(Input.ShowRiskInReport ? "on" : "")" @onclick="() => SetRisk(true)">แสดง</button>
+            <button class="@(!Input.ShowRiskInReport ? "on" : "")" @onclick="() => SetRisk(false)">ไม่แสดง</button>
+        </div>
+    </div>
 </div>
 
 <div class="card">
@@ -293,7 +300,8 @@
                       nameof(CcdsInput.LiterPerGallonA), nameof(CcdsInput.LiterPerGallonB), nameof(CcdsInput.CcdsPricePerGallonA)],
         ["leasing"] = [nameof(CcdsInput.LeasingPrice), nameof(CcdsInput.InterestRatePercent), nameof(CcdsInput.InstallmentYears)],
         ["powder"] = [nameof(CcdsInput.PowderA), nameof(CcdsInput.PowderB)],
-        ["pm"] = [nameof(CcdsInput.PmPerYear), nameof(CcdsInput.WarrantyYears), nameof(CcdsInput.HorizonYears)],
+        ["pm"] = [nameof(CcdsInput.PmPerYear), nameof(CcdsInput.WarrantyYears), nameof(CcdsInput.HorizonYears),
+                nameof(CcdsInput.ShowRiskInReport)],
         ["utility"] = [nameof(CcdsInput.WaterRate), nameof(CcdsInput.WaterM3Per1000Liter), nameof(CcdsInput.ElectricRate),
                        nameof(CcdsInput.DaysPerMonth), nameof(CcdsInput.MixTankLiterA), nameof(CcdsInput.MixTankLiterB),
                        nameof(CcdsInput.Equipment), nameof(CcdsInput.IncludeUtility)],
@@ -448,6 +456,7 @@
     }
 
     private Task SetUtility(bool v) { Input.IncludeUtility = v; return Changed(); }
+    private Task SetRisk(bool v) { Input.ShowRiskInReport = v; return Changed(); }
     private Task SetPowder(ARecipeInput r, bool v) { r.UsePowder = v; return Changed(); }
     private Task Remove(ARecipeInput r) { Input.ARecipes.Remove(r); return Changed(); }
     /// <summary>เพิ่มสูตร A ชื่อถัดไปที่ยังไม่ซ้ำ (A1, A2, … ข้ามชื่อที่มีอยู่แล้ว)</summary>

@@ -112,4 +112,8 @@ public class CcdsInput
     public decimal PmPerYear { get; set; } = 160_000m;
     public int WarrantyYears { get; set; } = 4;
     public int HorizonYears { get; set; } = 10;
+
+    // ---------- รายงาน ----------
+    /// <summary>แสดง "ส่วนเผื่อความเสี่ยง (ถ้าจำนวนคนไข้เปลี่ยน)" ในหน้า Executive Summary</summary>
+    public bool ShowRiskInReport { get; set; } = true;
 }

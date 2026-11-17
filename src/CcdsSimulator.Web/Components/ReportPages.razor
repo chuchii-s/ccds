@@ -12,6 +12,17 @@
 
     private CcdsInput I => Result.Input;
 
+    // ส่วนเผื่อความเสี่ยง: คำนวณครั้งเดียวต่อผลคำนวณ (หน้าเรนเดอร์ซ้ำหลายครั้งตอนย่อหน้า/พิมพ์/PDF)
+    // ปิดในข้อ "ค่า PM และระยะเวลาวิเคราะห์" แล้วไม่คำนวณ และไม่กล่าวถึงในข้อเสนอแนะ
+    private (CcdsResult? For, CcdsSimulator.Services.SensitivityResult? Value) sensCache;
+    private CcdsSimulator.Services.SensitivityResult Sensitivity()
+    {
+        if (!I.ShowRiskInReport) return new(0, null, null, []);
+        if (!ReferenceEquals(sensCache.For, Result) || sensCache.Value is null)
+            sensCache = (Result, CcdsSimulator.Services.CcdsSensitivity.Analyze(I, -10, -20));
+        return sensCache.Value!;
+    }
+
     // ---------------- โครงหน้า ----------------
     private RenderFragment Page(int no, int count, string subtitle, RenderFragment body) =>
         @<section class="page">
@@ -76,11 +87,20 @@
             decimal glTotal = r.GlNetMonth * 12 * h;
             decimal ccdsTotal = glTotal - r.SavingHorizon;
             decimal maxTotal = Math.Max(1, Math.Max(glTotal, ccdsTotal));
-            decimal ccdsAfterMonth = r.CcdsNetMonth - r.LeasingPerMonth + I.PmPerYear / 12m;   // หลังผ่อนครบ (รวม PM)
-            decimal txAfter = t > 0 ? ccdsAfterMonth / t : 0;
             decimal glCut = r.TotalGallons - r.CcdsOtherGallons;
             bool afterExists = h > n;
+            // หลังผ่อนครบ: ถ้าประกันยาวกว่าระยะผ่อน ค่า PM เริ่มทีหลัง → บอกปีที่ตัวเลขนี้เริ่มใช้ได้
+            // (ถ้าประกันครอบคลุมถึงปีสุดท้าย ใช้ตัวเลขที่ไม่มีค่า PM แทน)
+            int sy = CcdsCalculator.AfterLeaseFromYear(I);
+            bool pmAfter = sy <= h;
+            decimal pmMonth = I.PmPerYear / 12m;
+            decimal afterMonth = pmAfter ? r.SavingPerMonthAfterLease : r.SavingPerMonthAfterLease + pmMonth;
+            int afterFrom = pmAfter ? sy : n + 1;
+            string afterWhen = afterFrom == n + 1 ? "หลังผ่อนครบ" : $"ตั้งแต่ปีที่ {afterFrom}";
+            decimal ccdsAfterMonth = r.CcdsNetMonth - r.LeasingPerMonth + (pmAfter ? pmMonth : 0);   // หลังผ่อนครบ (รวม PM ถ้ามี)
+            decimal txAfter = t > 0 ? ccdsAfterMonth / t : 0;
             int? be = r.BreakEvenYear;
+            var sens = Sensitivity();
         }
         <div class="ex-hero @(good ? "good" : "bad")">
             <div class="ex-eyebrow">Executive Summary</div>
@@ -89,9 +109,14 @@
                 <div class="ex-head">ลงทุนระบบ CCDS ประหยัดสุทธิ <b>@Money(r.SavingHorizon)</b> ใน @h ปี</div>
                 <div class="ex-sub">
                     @(be is int b ? $"เริ่มคืนทุนปีที่ {b}" : "")
-                    @if (afterExists && r.SavingPerMonthAfterLease > 0) { <span> • หลังผ่อนครบ ประหยัดเดือนละ <b>@N0(r.SavingPerMonthAfterLease)</b> บาท</span> }
+                    @if (afterExists && afterMonth > 0) { <span> • @afterWhen ประหยัดปีละ <b>@N0(afterMonth * 12)</b> บาท</span> }
                     • ค่าใช้จ่ายรวมลดลง <b>@Pct0(r.SavingHorizon, glTotal)</b> เทียบกับการซื้อแกลลอนต่อไป
                 </div>
+            }
+            else if (r.SavingHorizon == 0)
+            {
+                <div class="ex-head">ค่าใช้จ่ายรวม @h ปี <b>เท่ากับ</b>แบบแกลลอน</div>
+                <div class="ex-sub">ยังไม่มีผลประหยัด — ตรวจสอบข้อมูลปริมาณน้ำยา ราคา และค่าเช่าซื้อ</div>
             }
             else
             {
@@ -101,10 +126,10 @@
         </div>
 
         <div class="ex-stats">
-            <div class="ex-stat @Cls(r.SavingHorizon)"><div class="l">ประหยัดสุทธิ @h ปี</div><div class="v">@Signed(r.SavingHorizon)</div><div class="n">บาท (หักค่าเครื่อง ดอกเบี้ย ค่าบำรุงรักษาแล้ว)</div></div>
-            <div class="ex-stat @(be is null ? "neg" : "pos")"><div class="l">จุดคืนทุน</div><div class="v">@(be is int y ? $"ปีที่ {y}" : "ยังไม่คืนทุน")</div><div class="n">ยอดสะสมเป็นบวกต่อเนื่อง</div></div>
-            <div class="ex-stat @Cls(afterExists ? r.SavingPerMonthAfterLease : r.SavingPerMonth)"><div class="l">@(afterExists ? $"ประหยัด/เดือน ตั้งแต่ปีที่ {n + 1}" : "ประหยัด/เดือน ช่วงผ่อน")</div>
-                <div class="v">@Signed(afterExists ? r.SavingPerMonthAfterLease : r.SavingPerMonth)</div><div class="n">@(afterExists ? "บาท หลังผ่อนครบ (หักค่าบำรุงรักษาแล้ว)" : "บาท")</div></div>
+            <div class="ex-stat @Cls(r.SavingHorizon)"><div class="l">ประหยัดสุทธิ @h ปี</div><div class="v">@Signed(r.SavingHorizon) <small>บาท</small></div><div class="n">(หักค่าเครื่อง ดอกเบี้ย ค่าบำรุงรักษา)</div></div>
+            <div class="ex-stat @(be is null ? "neg" : "pos")"><div class="l">จุดคืนทุน</div><div class="v">@(be is int y ? $"ปีที่ {y}" : "ยังไม่คืนทุน")</div><div class="n">@(be is null ? $"ภายใน {h} ปี" : "ยอดสะสมเป็นบวกต่อเนื่อง")</div></div>
+            <div class="ex-stat @Cls(afterExists ? afterMonth : r.SavingPerMonth)"><div class="l">@(afterExists ? $"ประหยัด/เดือน ตั้งแต่ปีที่ {afterFrom}" : "ประหยัด/เดือน ช่วงผ่อน")</div>
+                <div class="v">@Signed(afterExists ? afterMonth : r.SavingPerMonth) <small>บาท</small></div>@if (afterExists) { <div class="n">หลังผ่อนครบ @(pmAfter ? "(หักค่าบำรุงรักษา)" : "(ยังอยู่ในประกัน)")</div> }</div>
             <div class="ex-stat navy"><div class="l">ต้นทุนต่อการฟอก 1 ครั้ง</div>
                 <div class="v">@N2(r.GlCostPerTreatment) → @N2(afterExists ? txAfter : r.CcdsCostPerTreatment)</div><div class="n">บาท: แกลลอน → CCDS@(afterExists ? " หลังผ่อนครบ" : "")</div></div>
         </div>
@@ -123,15 +148,23 @@
                 @Sec("เส้นทางผลตอบแทน")
                 <div class="ex-tl">
                     <div class="ex-tl-bar">
-                        <div class="seg lease" style="flex:@Math.Min(n, h)"><span>ปีที่ 1–@Math.Min(n, h)</span><b>ช่วงผ่อนเครื่อง</b></div>
-                        @if (afterExists) { <div class="seg own" style="flex:@(h - n)"><span>ปีที่ @(n + 1)–@h</span><b>ผ่อนครบ เครื่องเป็นของลูกค้า</b></div> }
+                        <div class="seg lease" style="flex:@Math.Min(n, h)"><span>@Range(1, Math.Min(n, h))</span><b>ช่วงผ่อนเครื่อง</b></div>
+                        @if (afterExists) { <div class="seg own" style="flex:@(h - n)"><span>@Range(n + 1, h)</span><b>ผ่อนครบ เครื่องเป็นของลูกค้า</b></div> }
                     </div>
                     <div class="ex-tl-rows">
                         <div><span>ช่วงผ่อน (@n ปี)</span><b class="@Cls(r.SavingPerMonth)">@Signed(r.SavingPerMonth) บาท/เดือน</b></div>
-                        @if (afterExists) { <div><span>หลังผ่อนครบ (หักค่าบำรุงรักษาแล้ว)</span><b class="@Cls(r.SavingPerMonthAfterLease)">@Signed(r.SavingPerMonthAfterLease) บาท/เดือน</b></div> }
-                        <div><span>จุดคืนทุน</span><b class="@(be is null ? "neg" : "pos")">@(be is int y2 ? $"ปีที่ {y2}" : "ยังไม่คืนทุนในช่วงที่วิเคราะห์")</b></div>
+                        @if (afterExists) { <div><span>@afterWhen @(pmAfter ? "(หักค่าบำรุงรักษาแล้ว)" : "(ยังอยู่ในประกัน)")</span><b class="@Cls(afterMonth)">@Signed(afterMonth) บาท/เดือน</b></div> }
                     </div>
                 </div>
+
+                @Sec("การลงทุน")
+                <table class="rt ex-inv"><tbody>
+                    <tr><td class="l">ราคาเครื่อง CCDS (@I.Machines เครื่อง)</td><td>@N0(I.LeasingPrice) บาท</td></tr>
+                    <tr><td class="l">เช่าซื้อ</td><td>@n ปี @@ @I.InterestRatePercent.ToString("0.##")% (Flat)</td></tr>
+                    <tr><td class="l">ค่างวด / เดือน</td><td>@N0(r.LeasingPerMonth) บาท</td></tr>
+                    <tr><td class="l">ยอดผ่อนรวม</td><td>@N0(r.LeasingTotal) บาท</td></tr>
+                </tbody></table>
+
             </div>
             <div>
                 @Sec("ประโยชน์ที่ได้รับ")
@@ -153,19 +186,33 @@
                     <li><b>รับประกัน @I.WarrantyYears ปี</b> ค่าบำรุงรักษาหลังหมดประกัน (ปีละ @N0(I.PmPerYear) บาท) รวมในการคำนวณแล้ว</li>
                 </ul>
 
-                @Sec("การลงทุน")
-                <table class="rt ex-inv"><tbody>
-                    <tr><td class="l">ราคาเครื่อง CCDS (@I.Machines เครื่อง)</td><td>@N0(I.LeasingPrice) บาท</td></tr>
-                    <tr><td class="l">เช่าซื้อ</td><td>@n ปี @@ @I.InterestRatePercent.ToString("0.##")% (Flat)</td></tr>
-                    <tr><td class="l">ค่างวด / เดือน</td><td>@N0(r.LeasingPerMonth) บาท</td></tr>
-                    <tr><td class="l">ยอดผ่อนรวม</td><td>@N0(r.LeasingTotal) บาท</td></tr>
-                </tbody></table>
+                @if (sens.BaseTreatments > 0)
+                {
+                    @Sec("ส่วนเผื่อความเสี่ยง (ถ้าจำนวนคนไข้เปลี่ยน)")
+                    <div class="ex-risk">
+                        @RiskCard("ช่วงผ่อน ไม่จ่ายเพิ่มรายเดือน", sens.BreakEvenLeaseTx, sens.BaseTreatments)
+                        @RiskCard($"คุ้มค่าตลอด {h} ปี", sens.BreakEvenHorizonTx, sens.BaseTreatments)
+                    </div>
+                    <table class="rt ex-sens">
+                        <thead><tr><th class="l">Treatment/เดือน</th><th>ประหยัด/เดือน ช่วงผ่อน</th><th>ประหยัดสุทธิ @h ปี</th></tr></thead>
+                        <tbody>
+                            @foreach (var pt in sens.Points)
+                            {
+                                <tr class="@(pt.ChangePercent == 0 ? "cur" : "")">
+                                    <td class="l">@N0(pt.Treatments) <small>@(pt.ChangePercent == 0 ? "(ปัจจุบัน)" : $"(ลดลง {-pt.ChangePercent:0}%)")</small></td>
+                                    <td class="@Cls(pt.SavingPerMonth)">@Signed(pt.SavingPerMonth)</td>
+                                    <td class="@Cls(pt.SavingHorizon)">@Signed(pt.SavingHorizon)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
             </div>
         </div>
 
         <div>
             @Sec($"ผลประหยัดสะสมรายปี ({h} ปี)")
-            <YearLineChart Result="r" />
+            <div class="xc"><YearLineChart Result="r" H="190" Phases="true" WarrantyYear="I.WarrantyYears" /></div>
         </div>
 
         <div class="ex-reco @(good ? "good" : "bad")">
@@ -188,6 +235,29 @@
             • ราคาน้ำยา A @N2(I.PricePerGallonA) / B @N2(I.PricePerGallonB) บาท/แกลลอน • Utility @(I.IncludeUtility ? "รวมในต้นทุน" : "ไม่นำมาคิด")</div>
     </text>;
 
+    /// <summary>การ์ด "คุ้มเมื่อ Treatment ≥ X" พร้อมบอกว่าลดลงได้อีกกี่ % (หรือต้องเพิ่มอีกกี่ %)</summary>
+    private static RenderFragment RiskCard(string label, decimal? need, decimal tx) => @<div class="rk @(need is decimal x && x <= tx ? "pos" : "neg")">
+        <div class="l">@label</div>
+        @if (need is decimal v)
+        {
+            @if (v <= 0)
+            {
+                <div class="v">คุ้มทุกจำนวน</div><div class="n">ไม่มีค่าใช้จ่ายคงที่ที่ต้องคืนทุน</div>
+            }
+            else
+            {
+                <div class="v">Treatment ≥ @N0(v) <small>/เดือน</small></div>
+                <div class="n">@(v <= tx ? $"ลดลงได้อีก {Pct0(tx - v, tx)} ก่อนถึงจุดคุ้มทุน" : $"ต้องเพิ่มอีก {Pct0(v - tx, tx)} จากปัจจุบัน")</div>
+            }
+        }
+        else
+        {
+            <div class="v">ยังไม่คุ้ม</div><div class="n">แม้ Treatment เพิ่มขึ้นมาก</div>
+        }
+    </div>;
+
+    private static string Range(int a, int b) => a == b ? $"ปีที่ {a}" : $"ปีที่ {a}–{b}";
+
     private static string Pc(decimal f) => (Math.Clamp(f, 0, 1) * 100).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + "%";
 
     // ================= หน้า 2: สรุปตัวเลข =================
@@ -203,8 +273,12 @@
             <div class="verdict @Cls(r.SavingHorizon)">
                 <div class="h">ข้อสรุป</div>
                 <div>ช่วงผ่อนชำระ @I.InstallmentYears ปีแรก ระบบ CCDS <b class="@Cls(r.SavingPerMonth)">@(r.SavingPerMonth >= 0 ? "ประหยัดกว่า" : "มีค่าใช้จ่ายสูงกว่า")</b>
-                    แบบ GL เดือนละ @N0(Math.Abs(r.SavingPerMonth)) บาท • เมื่อผ่อนครบจะเริ่ม@(r.SavingPerMonthAfterLease >= 0 ? "ประหยัด" : "ขาดทุน")ปีที่ @(I.InstallmentYears + 1)
-                    <b class="@Cls(r.SavingPerMonthAfterLease)">เดือนละ @N2(Math.Abs(r.SavingPerMonthAfterLease)) บาท</b> (หักค่า PM แล้ว) •
+                    แบบ GL เดือนละ @N0(Math.Abs(r.SavingPerMonth)) บาท •
+                    @if (r.Years.Count >= CcdsCalculator.AfterLeaseFromYear(I))
+                    {
+                        <span>เมื่อผ่อนครบ@(r.SavingPerMonthAfterLease >= 0 ? "ประหยัด" : "ขาดทุน")ตั้งแต่ปีที่ @CcdsCalculator.AfterLeaseFromYear(I)
+                        <b class="@Cls(r.SavingPerMonthAfterLease)">เดือนละ @N2(Math.Abs(r.SavingPerMonthAfterLease)) บาท</b> (หักค่า PM แล้ว) • </span>
+                    }
                     ครบ @I.HorizonYears ปี Cost Saving สุทธิ <b class="@Cls(r.SavingHorizon)">@Signed(r.SavingHorizon, 2) บาท</b></div>
             </div>
             <div class="cols" style="grid-template-columns: 11fr 9fr">
@@ -268,14 +342,19 @@
 
     private RenderFragment LongTermFacts(CcdsResult r)
     {
-        int ny = r.Input.InstallmentYears;
-        var items = new (string, decimal, string)[]
+        int ny = Math.Clamp(r.Input.InstallmentYears, 1, 30), sy = CcdsCalculator.AfterLeaseFromYear(r.Input);
+        var items = r.Years.Count <= ny
+            ? new (string, decimal, string)[]   // ระยะเวลาวิเคราะห์สั้นกว่าระยะผ่อน: ไม่มีช่วงหลังผ่อนครบ
+            {
+                ("Cost Saving ช่วงผ่อน / เดือน", r.SavingPerMonth, $"ผ่อน {ny} ปี ยาวกว่าระยะเวลาวิเคราะห์ {r.Years.Count} ปี"),
+            }
+            : new (string, decimal, string)[]
         {
             ($"Cost Saving ช่วงผ่อน {ny} ปี", r.SavingDuringLease, ""),
             ($"หัก ค่า PM หลังหมด Warranty {r.Input.WarrantyYears} ปี", -r.PmDuringLease, $"PM ปีละ {N0(r.Input.PmPerYear)}"),
             ($"สุทธิเมื่อผ่อนครบ {ny} ปี", r.SavingDuringLeaseAfterPm, ""),
-            ($"ปีที่ {ny + 1} เป็นต้นไป / เดือน", r.SavingPerMonthAfterLease, "หัก PM ต่อเดือนแล้ว"),
-            ($"ปีที่ {ny + 1} เป็นต้นไป / ปี", r.SavingPerYearAfterLease, ""),
+            ($"ปีที่ {sy} เป็นต้นไป / เดือน", r.SavingPerMonthAfterLease, "หัก PM ต่อเดือนแล้ว"),
+            ($"ปีที่ {sy} เป็นต้นไป / ปี", r.SavingPerYearAfterLease, ""),
         };
         return @<div class="facts-r">
             @foreach (var (l, v, note) in items)

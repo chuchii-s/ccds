@@ -801,13 +801,14 @@ th.sortable:hover { color: var(--text); }
 .ex-sub b { color: var(--navy); }
 
 .ex-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm; }
-.ex-stat { position: relative; padding: 3.2mm 3.4mm 3mm; border-radius: 2.6mm; border: .6pt solid #dde4ee; background: #fff; overflow: hidden;
+.ex-stat { position: relative; display: flex; flex-direction: column; justify-content: center; text-align: left; padding: 3.2mm 3.4mm 3mm; border-radius: 2.6mm; border: .6pt solid #dde4ee; background: #fff; overflow: hidden;
     box-shadow: 0 .6mm 2mm rgba(15, 27, 45, .06); --k: var(--navy); }
 .ex-stat::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 1.1mm; background: var(--k); }
 .ex-stat.pos { --k: var(--green); } .ex-stat.neg { --k: var(--burg); } .ex-stat.navy { --k: var(--blue); }
 .ex-stat .l { font-size: 7.8pt; color: var(--muted); font-weight: 600; }
 .ex-stat .v { font-size: 15pt; font-weight: 800; color: var(--k); margin-top: .8mm; line-height: 1.15; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
 .ex-stat .n { font-size: 7.3pt; color: var(--muted); margin-top: .5mm; }
+.ex-stat .v small { font-size: 8.5pt; font-weight: 600; color: var(--muted); letter-spacing: 0; }
 
 .ex-bars { display: grid; gap: 1.2mm; margin-bottom: 4mm; }
 .ex-bar-l { font-size: 8.8pt; color: var(--text); display: flex; flex-wrap: wrap; gap: 0 1.5mm; align-items: baseline; }
@@ -823,10 +824,10 @@ th.sortable:hover { color: var(--text); }
 
 /* การ์ดช่วงเวลาแบบเส้นกรอบ (ไม่เติมสีพื้น) — สีน้ำเงิน = ช่วงผ่อน, สีเขียว = ผ่อนครบ */
 .ex-tl-bar { display: flex; gap: 2mm; }
-.ex-tl-bar .seg { position: relative; padding: 2mm 2.8mm 2.2mm; display: flex; flex-direction: column; min-width: 0;
+.ex-tl-bar .seg { position: relative; padding: 2mm 2.8mm 2.2mm; display: flex; flex-direction: column; min-width: 26mm;
     background: #fff; border: 1.1pt solid var(--c); border-radius: 2.2mm; }
 .ex-tl-bar .seg span { font-size: 7.3pt; color: var(--muted); font-weight: 600; }
-.ex-tl-bar .seg b { font-size: 8.6pt; color: var(--c); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ex-tl-bar .seg b { font-size: 8.6pt; color: var(--c); line-height: 1.3; }   /* แถบแคบ: ขึ้นบรรทัดใหม่แทนการตัดคำ */
 .ex-tl-bar .seg.lease { --c: #2a6fa8; }
 .ex-tl-bar .seg.own { --c: #15803d; }
 .ex-tl-rows { margin-top: 1.6mm; }
@@ -840,6 +841,17 @@ th.sortable:hover { color: var(--text); }
 .ex-list b { color: var(--navy); }
 .page .nw { white-space: nowrap; }   /* คำที่ห้ามตัดกลางคำ */
 .rt.ex-inv td { font-size: 8.4pt; }
+.ex-risk { display: grid; grid-template-columns: 1fr 1fr; gap: 2mm; margin-bottom: 1.6mm; }
+.ex-risk .rk { border: .6pt solid #e2e8f0; border-left: 1mm solid var(--c); border-radius: 1.8mm; padding: 1.6mm 2.2mm; --c: var(--green); }
+.ex-risk .rk.neg { --c: var(--burg); }
+.ex-risk .l { font-size: 7.4pt; color: var(--muted); }
+.ex-risk .v { font-size: 10.5pt; font-weight: 800; color: var(--c); font-variant-numeric: tabular-nums; }
+.ex-risk .v small { font-size: 7pt; font-weight: 600; color: var(--muted); }
+.ex-risk .n { font-size: 7.2pt; color: var(--muted); }
+.rt.ex-sens th, .rt.ex-sens td { font-size: 8pt; padding-top: .9mm; padding-bottom: .9mm; }
+.rt.ex-sens td small { color: var(--muted); font-size: 7pt; }
+.rt.ex-sens tr.cur td { font-weight: 700; }
+.rt.ex-sens td.pos { color: var(--green); }
 
 .ex-reco { border-radius: 2.6mm; padding: 3mm 4mm; font-size: 9pt; line-height: 1.5; }
 .ex-reco.good { background: linear-gradient(90deg, #e3f4ea, #f4fbf7); box-shadow: inset 1mm 0 0 var(--green); }
@@ -848,6 +860,15 @@ th.sortable:hover { color: var(--text); }
 .ex-reco.good .h, .ex-reco.good b { color: var(--green); }
 .ex-reco.bad .h, .ex-reco.bad b { color: var(--burg); }
 .ex-foot { font-size: 7.3pt; color: var(--muted); line-height: 1.45; }
+
+/* กราฟหน้า 1: ไม่มีกรอบ + แถบช่วงผ่อน/ผ่อนครบ + เส้นหมดประกัน */
+.xc .ylc { border: 0; padding: 0; background: none; }
+.ylc .ph.lease { fill: #2a6fa8; fill-opacity: .055; }
+.ylc .ph.own { fill: #15803d; fill-opacity: .06; }
+.ylc .phl { font-size: 9.5px; font-weight: 700; font-family: inherit; letter-spacing: .02em; }
+.ylc .phl.lease { fill: #2a6fa8; } .ylc .phl.own { fill: #15803d; }
+.ylc .mark.wr { stroke: #d08a1e; }
+.ylc .mk.wr { fill: #b8741a; }
 
 /* กราฟเส้น Cost Saving สะสม (หน้า Executive Summary) */
 .ylc { border: .6pt solid #e2e8f0; border-radius: 2.4mm; padding: 2.2mm 2.4mm 1.6mm; background: linear-gradient(180deg, #fbfcfe, #fff 60%); }
@@ -921,7 +942,17 @@ th.sortable:hover { color: var(--text); }
 .foot-note b { color: var(--navy); }
 
 /* กราฟ/ตารางรายปีในแผงขวา (ใช้คลาสเดียวกับรายงาน แต่สีตามธีมหน้าจอ) */
-.panel-report .glass .panel-report .panel-report .panel-report .rt td { border-color: var(--line); }
+/* กราฟ/ตารางรายปีในแผงขวา (ใช้คลาสเดียวกับรายงาน แต่สีตามธีมหน้าจอ) */
+.panel-report .ylc { background: var(--surface); border-color: var(--border); }
+.glass .panel-report .ylc { background: color-mix(in srgb, var(--surface) 45%, transparent); border-color: var(--glass-input-edge); }
+.panel-report .ylc .cap { color: var(--muted); }
+.panel-report .ylc .ax, .panel-report .ylc .yr, .panel-report .ylc .mk { fill: var(--muted); }
+.panel-report .ylc .grid { stroke: var(--line); }
+.panel-report .ylc .zero { stroke: var(--muted); }
+.panel-report .ylc .val.pos, .panel-report .ylc .beL { fill: var(--pos); }
+.panel-report .ylc .val.neg { fill: var(--neg-num); }
+.panel-report .ylc .pt, .panel-report .ylc .val, .panel-report .ylc .beL { stroke: var(--surface); }
+.panel-report .rt td { border-color: var(--line); }
 .panel-report .rt td.neg, .panel-report .neg { color: var(--neg-num); }
 .panel-report .pos { color: var(--pos); }
 .panel-report .rt.yt td, .panel-report .rt.yt th { border-left-color: var(--line); }
@@ -944,3 +975,4 @@ th.sortable:hover { color: var(--text); }
 @media (max-width: 380px) { .x-hint.narrow { display: block; } }
 /* จอเล็กมาก (≤ 380px): ช่องกรอกในข้อ 1/3/4/6/7 เรียงทีละช่อง ตัวเลขยาว + หน่วยไม่ถูกตัด */
 @media (max-width: 380px) { .card .g3, .card .g2 { grid-template-columns: minmax(0, 1fr); } }
+.ex-tl + .sec { margin-top: 3.2mm; }
