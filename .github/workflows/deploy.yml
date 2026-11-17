@@ -1,0 +1,85 @@
+# Build + test แล้ว deploy ขึ้น GitHub Pages ทุกครั้งที่ push เข้า main
+#
+# อัปเดตด้วย "ไฟล์เดียว": อัปโหลด ccds-upload.zip ไว้ที่หน้าแรกของ repo (Add file → Upload files)
+# workflow นี้จะแตกไฟล์ทับโค้ดเดิม (ไฟล์ที่ไม่มีใน zip จะถูกลบ ยกเว้น .github/), ลบ zip ออก, commit ให้อัตโนมัติ
+# แล้ว test → build → deploy ต่อทันที
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # ใช้ commit ผลการแตกไฟล์ zip
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unpack ccds-upload.zip (ถ้ามี)
+        run: |
+          if [ ! -f ccds-upload.zip ]; then echo "ไม่มี ccds-upload.zip — ใช้โค้ดใน repo ตามปกติ"; exit 0; fi
+          rm -rf /tmp/up && mkdir -p /tmp/up
+          unzip -q -o ccds-upload.zip -d /tmp/up
+          SRC=/tmp/up
+          # รองรับ zip ที่มีโฟลเดอร์ ccds/ ครอบอยู่ชั้นนอก
+          if [ ! -f "$SRC/CcdsSimulator.sln" ] && [ -f "$SRC/ccds/CcdsSimulator.sln" ]; then SRC=/tmp/up/ccds; fi
+          if [ ! -f "$SRC/CcdsSimulator.sln" ]; then echo "::error::ccds-upload.zip ไม่ใช่ไฟล์โปรเจกต์ CCDS (ไม่พบ CcdsSimulator.sln)"; exit 1; fi
+          # ทำให้ repo ตรงกับ zip (ไม่แตะ .git และ .github — workflow แก้ตัวเองไม่ได้)
+          find . -mindepth 1 -maxdepth 1 ! -name .git ! -name .github ! -name ccds-upload.zip -exec rm -rf {} +
+          rm -rf "$SRC/.github"
+          cp -a "$SRC/." ./
+          git rm -q --cached ccds-upload.zip || true
+          rm -f ccds-upload.zip
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then echo "ไม่มีไฟล์เปลี่ยน"; else git commit -q -m "แตกไฟล์ ccds-upload.zip อัตโนมัติ"; fi
+          git push
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Test
+        run: dotnet test tests/CcdsSimulator.Tests -c Release
+
+      - name: Publish
+        run: dotnet publish src/CcdsSimulator.Web -c Release -o out
+
+      - name: Prepare for GitHub Pages
+        run: |
+          REPO="${GITHUB_REPOSITORY#*/}"
+          # repo ชื่อ <user>.github.io ใช้ path "/" ส่วน repo อื่นใช้ "/<repo>/"
+          if [[ "$REPO" == *.github.io ]]; then BASE="/"; else BASE="/$REPO/"; fi
+          sed -i "s|<base href=\"/\" />|<base href=\"$BASE\" />|" out/wwwroot/index.html
+          # กันเบราว์เซอร์ใช้ไฟล์ js/css เวอร์ชันเก่าที่จำไว้ (เติมเลขเวอร์ชันตาม commit)
+          V="${GITHUB_SHA::8}"
+          sed -i "s|js/app.js\"|js/app.js?v=$V\"|; s|css/app.css\"|css/app.css?v=$V\"|" out/wwwroot/index.html
+          # เปิดลิงก์ตรง เช่น /dashboard ได้ (GitHub Pages ส่ง 404.html กลับมา แล้ว Blazor จัดการเส้นทางเอง)
+          cp out/wwwroot/index.html out/wwwroot/404.html
+          # ให้ GitHub Pages ส่งโฟลเดอร์ _framework (ขึ้นต้นด้วย _) ด้วย
+          touch out/wwwroot/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: out/wwwroot
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
