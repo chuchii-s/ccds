@@ -46,6 +46,7 @@ dotnet test                                    # ทดสอบสูตร
 | `src/CcdsSimulator.Web/Pages/` | หน้าโครงการ, แก้ไข, รายงาน, Dashboard, ตั้งค่า |
 | `src/CcdsSimulator.Web/Components/` | ฟอร์ม, แผงผลลัพธ์, รายงาน A4 |
 | `src/CcdsSimulator.Web/Services/ProjectStore.cs` | เก็บข้อมูลใน localStorage |
+| `src/CcdsSimulator.Web/wwwroot/icons/` + `manifest.webmanifest` | ไอคอนโปรแกรม (แท็บเบราว์เซอร์ + หน้าจอโฮม iPhone / iPad / Android) — ต้นแบบคือ `icons/icon.svg` |
 | `src/CcdsSimulator.Web/wwwroot/CCDS_Simulator.html` | โปรแกรมเวอร์ชันไฟล์เดียว (ใช้กับ Export HTML) |
 | `tests/CcdsSimulator.Tests/` | ทดสอบสูตร |
 | `.github/workflows/deploy.yml` | build + test + deploy ขึ้น GitHub Pages |

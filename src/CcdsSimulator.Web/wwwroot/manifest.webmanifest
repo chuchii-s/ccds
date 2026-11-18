@@ -1,0 +1,16 @@
+{
+  "name": "CCDS Feasibility Simulator",
+  "short_name": "CCDS",
+  "description": "เปรียบเทียบค่าใช้จ่ายน้ำยาแกลลอน กับระบบผสมน้ำยา CCDS",
+  "lang": "th",
+  "start_url": "./",
+  "scope": "./",
+  "display": "browser",
+  "background_color": "#173563",
+  "theme_color": "#1e3a5f",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
