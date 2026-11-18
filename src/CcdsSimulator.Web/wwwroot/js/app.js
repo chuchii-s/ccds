@@ -121,27 +121,63 @@ window.ccds = {
         return new Blob(parts, { type: "application/pdf" });
     },
 
-    reportJpg: async (containerId, baseName, title, mode) => {
-        const pages = [...document.querySelectorAll(`#${containerId} .page`)];
+    // ---------- JPG: สร้างภาพทุกหน้าไว้ก่อน แล้วให้ผู้ใช้เลือกหน้าที่จะแชร์ / ดาวน์โหลด ----------
+    _jpg: { files: [], urls: [] },
+    _jpgGen: 0,
+    /**
+     * แปลงทุกหน้า .page ใน #containerId เป็น JPG เก็บไว้ คืน URL ของภาพ (ใช้แสดงตัวอย่าง)
+     * ถ้าระหว่างสร้างมีการปิดหน้าต่าง/เปิดใหม่ (jpgClear หรือ jpgPrepare รอบใหม่) ผลรอบนี้จะถูกทิ้ง คืน null
+     */
+    jpgPrepare: async (containerId, baseName) => {
+        ccds.jpgClear();
+        const gen = ccds._jpgGen;
+        const root = document.getElementById(containerId);
+        if (!root) return null;
+        const pages = [...root.querySelectorAll(".page")];
         await document.fonts.ready;
-        ccds.fitReport(document.getElementById(containerId));
-        const files = [];
+        ccds.fitReport(root);
+        const files = [], urls = [];
         for (let k = 0; k < pages.length; k++) {
             const url = await htmlToImage.toJpeg(pages[k], { quality: 0.92, pixelRatio: 2, backgroundColor: "#ffffff" });
             const blob = await (await fetch(url)).blob();
-            files.push(new File([blob], `${baseName}_p${k + 1}.jpg`, { type: "image/jpeg" }));
+            const f = new File([blob], `${baseName}_p${k + 1}.jpg`, { type: "image/jpeg" });
+            files.push(f); urls.push(URL.createObjectURL(f));
+            if (gen !== ccds._jpgGen) break;
         }
-        if (mode === "share" && navigator.canShare && navigator.canShare({ files })) {
-            try { await navigator.share({ files, title, text: title }); return "shared"; }
-            catch (e) { if (e && e.name === "AbortError") return "cancelled"; }
-        }
-        for (const f of files) {
+        if (gen !== ccds._jpgGen) { urls.forEach(u => URL.revokeObjectURL(u)); return null; }
+        ccds._jpg = { files, urls };
+        return urls;
+    },
+    jpgCanShare: () => {
+        try {
+            const f = new File([new Blob(["x"], { type: "image/jpeg" })], "x.jpg", { type: "image/jpeg" });
+            return !!(navigator.share && navigator.canShare && navigator.canShare({ files: [f, f] }));
+        } catch { return false; }
+    },
+    /** แชร์ภาพที่เลือก (ต้องเรียกจากการกดปุ่มโดยตรง) คืน "shared" | "cancelled" | "unsupported" | "failed" */
+    jpgShare: async (idx, title) => {
+        const files = idx.map(i => ccds._jpg.files[i]).filter(Boolean);
+        if (!files.length || !navigator.canShare || !navigator.canShare({ files })) return "unsupported";
+        try { await navigator.share({ files, title }); return "shared"; }
+        catch (e) { return e && e.name === "AbortError" ? "cancelled" : "failed"; }
+    },
+    /** ดาวน์โหลดภาพที่เลือกทีละไฟล์ เว้นช่วงระหว่างไฟล์ (เบราว์เซอร์มักบล็อกการดาวน์โหลดหลายไฟล์ที่ออกมาพร้อมกัน) */
+    jpgDownload: async idx => {
+        for (let k = 0; k < idx.length; k++) {
+            const f = ccds._jpg.files[idx[k]], url = ccds._jpg.urls[idx[k]];
+            if (!f) continue;
+            if (k > 0) await new Promise(r => setTimeout(r, 900));
             const a = document.createElement("a");
-            a.href = URL.createObjectURL(f); a.download = f.name;
+            a.href = url; a.download = f.name;
             document.body.appendChild(a); a.click(); a.remove();
-            setTimeout(() => URL.revokeObjectURL(a.href), 2000);
         }
-        return "downloaded";
+    },
+    jpgClear: () => {
+        // หน่วงก่อนคืนหน่วยความจำ เผื่อการดาวน์โหลดล่าสุดยังอ่านไฟล์อยู่
+        const old = ccds._jpg.urls;
+        ccds._jpg = { files: [], urls: [] };
+        ccds._jpgGen++;
+        if (old.length) setTimeout(() => old.forEach(u => URL.revokeObjectURL(u)), 10000);
     },
     // ธีม: "light" | "dark" | "auto" (อัตโนมัติ ตามการตั้งค่าของเครื่อง) — จำไว้ในเบราว์เซอร์
     getTheme: () => { try { return localStorage.getItem("ccds.theme") || "auto"; } catch { return "auto"; } },
@@ -174,4 +210,14 @@ window.ccds = {
 })();
 
 // ก่อนพิมพ์ (Ctrl+P / ปุ่มพิมพ์) ตรวจให้ทุกหน้ารายงานพอดี A4 อีกครั้ง
-window.addEventListener("beforeprint", () => { try { ccds.fitReport(document); } catch { } });
+// มือถือ/แท็บเล็ต: ติดป้าย print-safe ให้ CSS ย่อหน้ารายงานตอนพิมพ์ (ดู @media print ใน app.css)
+ccds.markPrintSafe = () => {
+    try {
+        const touch = matchMedia("(hover: none) and (pointer: coarse)").matches
+            || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+            || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));   // iPad (โหมดเดสก์ท็อป)
+        document.documentElement.classList.toggle("print-safe", touch);
+    } catch { }
+};
+ccds.markPrintSafe();
+window.addEventListener("beforeprint", () => { ccds.markPrintSafe(); try { ccds.fitReport(document); } catch { } });

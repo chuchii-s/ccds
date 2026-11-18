@@ -17,36 +17,22 @@ else
         <div class="crumb"><a href="">สถานที่</a> / <b>@project.DisplayName</b>
             <span class="saved">@(saved is null ? "" : $"บันทึกอัตโนมัติแล้ว {saved:HH:mm:ss}")</span></div>
     </div>
-    @if (jpgRender)
+    @if (jpgOpen)
     {
+        @* สำเนารายงานที่ซ่อนไว้ (ขนาด A4 จริง ไม่ย่อตามจอ) ใช้แปลงเป็นภาพ *@
         <div id="jpg-src" class="jpg-src" aria-hidden="true"><ReportPages Result="r" /></div>
     }
+    <JpgDialog Visible="jpgOpen" SourceId="jpg-src" BaseName="@FileBase()" Title="@($"CCDS — {project.DisplayName}")" OnClose="() => jpgOpen = false" />
 
     <div class="layout">
         <section class="form glass">
             <InputForm Input="project.Input" Result="r" OnChange="Save" />
             <div class="form-actions glass">
                 <a class="btn primary" href="project/@project.Id/report"><span class="lbl">ดูรายงาน / พิมพ์ PDF</span></a>
-                <div class="menu-wrap" @onfocusout="CloseJpgSoon" @onfocusin="() => jpgClose?.Cancel()" @onkeydown="JpgKey">
-                    <button class="btn" @onclick="() => jpgOpen = !jpgOpen" disabled="@jpgBusy" aria-haspopup="menu">
-                        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="9" cy="10" r="1.8" /><path d="M21 16l-5-5-9 9" /></svg>
-                        @(jpgBusy ? "กำลังสร้าง JPG…" : "JPG")
-                        <svg class="ico sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6" /></svg>
-                    </button>
-                    @if (jpgOpen)
-                    {
-                        @* คลิก/แตะที่อื่นเพื่อปิด (Safari ไม่ย้าย focus ไปที่ปุ่มเมื่อคลิก จึงพึ่ง focusout อย่างเดียวไม่ได้) *@
-                        <div class="menu-backdrop" @onclick="() => jpgOpen = false"></div>
-                        <div class="menu" role="menu">
-                            <button role="menuitem" @onmousedown:preventDefault="true" @onclick='() => MakeJpg("share")'>
-                                <b>แชร์ไป Line / Email …</b><small>เปิดหน้าต่างแชร์ของเครื่อง</small>
-                            </button>
-                            <button role="menuitem" @onmousedown:preventDefault="true" @onclick='() => MakeJpg("download")'>
-                                <b>ดาวน์โหลด JPG</b><small>รายงาน 3 หน้า เป็นไฟล์ JPG หน้าละ 1 ไฟล์</small>
-                            </button>
-                        </div>
-                    }
-                </div>
+                <button class="btn" @onclick="() => { jpgOpen = true; message = null; }" aria-haspopup="dialog">
+                    <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="9" cy="10" r="1.8" /><path d="M21 16l-5-5-9 9" /></svg>
+                    JPG
+                </button>
                 <button class="btn xl" @onclick="ExportExcel" title="ไฟล์ Excel พร้อมสูตรคำนวณ — แก้ตัวเลขช่องสีฟ้าแล้วคำนวณใหม่ได้เอง">
                     <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M3 15h18M9 3v18" /></svg>
                     Excel
@@ -67,8 +53,7 @@ else
     private bool loading = true;
     private DateTime? saved;
     private string? message;
-    private bool jpgOpen, jpgBusy, jpgRender;
-    private CancellationTokenSource? jpgClose;
+    private bool jpgOpen;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -98,36 +83,6 @@ else
         return "CCDS_" + string.Join("_", parts);
     }
 
-    // ---------- JPG: แปลงรายงานเป็นภาพ แล้วแชร์ / ดาวน์โหลด ----------
-    private async Task MakeJpg(string mode)
-    {
-        jpgOpen = false;
-        jpgBusy = jpgRender = true;
-        message = null;
-        StateHasChanged();
-        try
-        {
-            await Task.Delay(150);   // รอให้รายงานที่ซ่อนไว้วาดเสร็จ
-            var title = $"CCDS — {project!.DisplayName}";
-            var result = await JS.InvokeAsync<string>("ccds.reportJpg", "jpg-src", FileBase(), title, mode);
-            message = result switch
-            {
-                "shared" => null,
-                "cancelled" => null,
-                _ when mode == "share" => "เครื่องนี้แชร์ไฟล์โดยตรงไม่ได้ จึงดาวน์โหลด JPG ให้แทน — แนบไฟล์ใน Line / อีเมลได้เลย",
-                _ => "ดาวน์โหลด JPG แล้ว (รายงาน 3 หน้า)",
-            };
-        }
-        catch (Exception ex)
-        {
-            message = "สร้าง JPG ไม่สำเร็จ: " + ex.Message;
-        }
-        finally
-        {
-            jpgBusy = jpgRender = false;
-        }
-    }
-
     // ---------- Excel: ไฟล์ .xlsx ที่ใส่สูตรคำนวณไว้แล้ว ----------
     private async Task ExportExcel()
     {
@@ -143,18 +98,5 @@ else
         {
             message = "สร้างไฟล์ Excel ไม่สำเร็จ: " + ex.Message;
         }
-    }
-
-    private void JpgKey(KeyboardEventArgs e)
-    {
-        if (e.Key == "Escape") jpgOpen = false;
-    }
-
-    private async Task CloseJpgSoon()
-    {
-        jpgClose?.Cancel();
-        jpgClose = new CancellationTokenSource();
-        try { await Task.Delay(150, jpgClose.Token); jpgOpen = false; StateHasChanged(); }
-        catch (TaskCanceledException) { }
     }
 }

@@ -1,0 +1,167 @@
+@* ส่งออกรายงานเป็น JPG: สร้างภาพทั้ง 3 หน้าก่อน แล้วให้เลือกหน้าที่จะแชร์ / ดาวน์โหลด
+   (กดแชร์/ดาวน์โหลดหลังภาพพร้อมแล้ว = เป็นการกดของผู้ใช้จริง เบราว์เซอร์จึงไม่บล็อก) *@
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@if (Visible)
+{
+    int n = sel.Count(x => x);
+    <div class="dlg-backdrop" @onclick="Close">
+        <div class="dlg jpg-dlg" role="dialog" aria-modal="true" aria-labelledby="jpg-title" @onclick:stopPropagation="true" @onkeydown="Key">
+            <div class="jd-head">
+                <h2 id="jpg-title">รายงานเป็นภาพ JPG</h2>
+                <button @ref="closeBtn" type="button" class="jd-x" aria-label="ปิด" @onclick="Close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+                </button>
+            </div>
+
+            @if (error is not null)
+            {
+                <div class="gate-err">สร้างภาพไม่สำเร็จ: @error</div>
+            }
+            else if (urls is null)
+            {
+                <div class="jd-loading"><span class="jd-spin" aria-hidden="true"></span>กำลังสร้างภาพรายงาน 3 หน้า…</div>
+            }
+            else
+            {
+                <p class="jd-hint">แตะภาพเพื่อเลือกหรือไม่เลือก — เลือกแล้ว <b>@n</b> จาก @urls.Length หน้า</p>
+                <div class="jd-grid">
+                    @for (int k = 0; k < urls.Length; k++)
+                    {
+                        int i = k;
+                        <div class="jd-item @(sel[i] ? "on" : "")">
+                            <button type="button" class="jd-pick" aria-pressed="@(sel[i] ? "true" : "false")" @onclick="() => Toggle(i)">
+                                <img src="@urls[i]" alt="รายงานหน้า @(i + 1)" />
+                                <span class="jd-check" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+                                </span>
+                            </button>
+                            <div class="jd-cap"><b>หน้า @(i + 1)</b><small>@PageName(i)</small></div>
+                            <button type="button" class="jd-one" @onclick="() => Download([i])">ดาวน์โหลดหน้านี้</button>
+                        </div>
+                    }
+                </div>
+                <div class="jd-actions">
+                    <button type="button" class="btn" @onclick="ToggleAll">@(n == urls.Length ? "ไม่เลือกทั้งหมด" : "เลือกทั้งหมด")</button>
+                    <span class="jd-sp"></span>
+                    @if (canShare)
+                    {
+                        <button type="button" class="btn" disabled="@(n == 0)" @onclick="Share">แชร์ / บันทึกรูป @n รูป</button>
+                    }
+                    <button type="button" class="btn primary" disabled="@(n == 0)" @onclick="DownloadSelected">ดาวน์โหลด @n รูป</button>
+                </div>
+                @if (!string.IsNullOrEmpty(msg)) { <div class="msg jd-msg">@msg</div> }
+            }
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>เปิด/ปิดหน้าต่าง (ผู้เรียกต้องวาดรายงานซ่อนไว้ใน SourceId ขณะที่เปิดอยู่)</summary>
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public string SourceId { get; set; } = "jpg-src";
+    [Parameter] public string BaseName { get; set; } = "CCDS";
+    [Parameter] public string Title { get; set; } = "CCDS";
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private string[]? urls;
+    private bool[] sel = [];
+    private bool canShare, wasVisible;
+    private string? error, msg;
+    private ElementReference closeBtn;
+
+    private static string PageName(int i) => i switch
+    {
+        0 => "สรุปสำหรับผู้บริหาร",
+        1 => "สรุปผลการวิเคราะห์",
+        2 => "รายละเอียดการคำนวณ",
+        _ => "",
+    };
+
+    private int gen;   // รอบการเปิดหน้าต่าง — ผลที่สร้างเสร็จหลังปิด/เปิดใหม่จะถูกทิ้ง
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Visible && !wasVisible)
+        {
+            wasVisible = true;
+            int my = ++gen;
+            urls = null; sel = []; error = msg = null;
+            try { await closeBtn.FocusAsync(); } catch { }
+            try
+            {
+                await Task.Delay(120);   // รอให้รายงานที่ซ่อนไว้วาดเสร็จ
+                if (my != gen) return;
+                canShare = await JS.InvokeAsync<bool>("ccds.jpgCanShare");
+                var r = await JS.InvokeAsync<string[]?>("ccds.jpgPrepare", SourceId, BaseName);
+                if (my != gen || !Visible) return;
+                if (r is null || r.Length == 0) { error = "ไม่พบหน้ารายงาน"; }
+                else { urls = r; sel = Enumerable.Repeat(true, r.Length).ToArray(); }
+            }
+            catch (Exception ex) { if (my != gen) return; error = ex.Message; }
+            StateHasChanged();
+        }
+        else if (!Visible && wasVisible)
+        {
+            wasVisible = false;
+            gen++;
+            urls = null; sel = [];
+            try { await JS.InvokeVoidAsync("ccds.jpgClear"); } catch { }
+        }
+    }
+
+    private void Toggle(int i) { sel[i] = !sel[i]; msg = null; }
+
+    private void ToggleAll()
+    {
+        bool all = sel.All(x => x);
+        for (int k = 0; k < sel.Length; k++) sel[k] = !all;
+        msg = null;
+    }
+
+    private int[] Selected() => Enumerable.Range(0, sel.Length).Where(k => sel[k]).ToArray();
+
+    private Task DownloadSelected() => Download(Selected());
+
+    private async Task Download(int[] pages)
+    {
+        if (pages.Length == 0) return;
+        msg = pages.Length == 1 ? null : $"กำลังดาวน์โหลด {pages.Length} รูป…";
+        StateHasChanged();
+        try
+        {
+            await JS.InvokeVoidAsync("ccds.jpgDownload", pages);
+            msg = pages.Length == 1
+                ? $"ดาวน์โหลดหน้า {pages[0] + 1} แล้ว"
+                : $"ดาวน์โหลด {pages.Length} รูปแล้ว — ถ้าได้ไม่ครบ ให้กด \"อนุญาต\" เมื่อเบราว์เซอร์ถามเรื่องดาวน์โหลดหลายไฟล์ หรือกด \"ดาวน์โหลดหน้านี้\" ทีละหน้า";
+        }
+        catch (Exception ex) { msg = "ดาวน์โหลดไม่สำเร็จ: " + ex.Message; }
+    }
+
+    private async Task Share()
+    {
+        var pages = Selected();
+        if (pages.Length == 0) return;
+        msg = null;
+        try
+        {
+            var r = await JS.InvokeAsync<string>("ccds.jpgShare", pages, Title);
+            msg = r switch
+            {
+                "shared" or "cancelled" => null,
+                "unsupported" => "เครื่องนี้แชร์หลายไฟล์พร้อมกันไม่ได้ — กดดาวน์โหลดแทน",
+                _ => "แชร์ไม่สำเร็จ — ลองกดอีกครั้ง หรือกดดาวน์โหลดแทน",
+            };
+        }
+        catch (Exception ex) { msg = "แชร์ไม่สำเร็จ: " + ex.Message; }
+    }
+
+    private Task Close() => OnClose.InvokeAsync();
+    private Task Key(KeyboardEventArgs e) => e.Key == "Escape" ? Close() : Task.CompletedTask;
+
+    public async ValueTask DisposeAsync()
+    {
+        try { await JS.InvokeVoidAsync("ccds.jpgClear"); } catch { }
+    }
+}
