@@ -294,6 +294,7 @@ input.name.wide { width: 100%; min-width: 92px; max-width: 150px; }
     font: inherit; font-size: 14.5px; font-weight: 400; cursor: pointer; font-variant-numeric: tabular-nums; }
 .combo-list button:hover { background: var(--surface-2); }
 .combo-list button.on { background: var(--primary-soft); color: var(--primary); font-weight: 600; }
+.combo-list button small { margin-left: 6px; font-size: 12px; font-weight: 400; color: var(--muted); }
 .card:has(.combo) { overflow: visible; }
 
 .calc { margin-top: 12px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px dashed var(--border-strong);
@@ -343,6 +344,13 @@ input.derived { color: var(--text-2); }
 .seg.mode button { padding: 6px 14px; font-size: 14px; white-space: normal; text-align: left; }
 .seg.mode button.on { background: var(--surface); color: var(--primary); font-weight: 600; box-shadow: 0 1px 2px rgba(15, 27, 45, .1); }
 .mode-hint { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+.pw-flow { margin: 4px 0 14px; }
+.rtbl input.auto, .glass .rtbl input.auto { background: var(--surface-2); color: var(--text-2); border-style: dashed; box-shadow: none; }
+.calc-own { margin-top: 4px; color: var(--primary); font-size: 13px; }
+.calc-note { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border-strong); color: var(--text); font-weight: 600; }
+.calc-note:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+.pw-flow label { justify-content: space-between; }
+.pw-flow label small { font-weight: 400; white-space: nowrap; }
 
 /* Undo / Redo มุมขวาบนของแต่ละข้อ */
 .ur { margin-left: auto; display: inline-flex; gap: 2px; padding: 2px; border-radius: 9px; background: var(--surface-3); }
@@ -1018,3 +1026,45 @@ th.sortable:hover { color: var(--text); }
 /* จอเล็กมาก (≤ 380px): ช่องกรอกในข้อ 1/3/4/6/7 เรียงทีละช่อง ตัวเลขยาว + หน่วยไม่ถูกตัด */
 @media (max-width: 380px) { .card .g3, .card .g2 { grid-template-columns: minmax(0, 1fr); } }
 .ex-tl + .sec { margin-top: 3.2mm; }
+
+/* ---------- หน้า "คำนวณน้ำยา" ---------- */
+.dc input.auto, .glass .dc input.auto { background: var(--surface-2); color: var(--text-2); border-style: dashed; box-shadow: none; }
+.dc-hint { font-size: 12px; font-weight: 400; color: var(--muted); }
+.calc-sub { margin-top: 4px; font-size: 12.5px; color: var(--muted); }
+.dc .results h3 small { font-size: 12.5px; font-weight: 400; }
+.dc-foot { margin: 8px 0 0; }
+.dc .kpi b { font-size: 24px; }
+.dc-t td { vertical-align: middle; }
+.dc-t td.muted { font-size: 13px; }
+.dc-t tr.dc-cost td { background: var(--primary-soft); }
+.dc-t tfoot td.r, .dc-t td.r { font-variant-numeric: tabular-nums; }
+.dc-notes h2 { font-size: 15px; }
+.dc-notes ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; color: var(--text-2); font-size: 14px; }
+@media (max-width: 640px) {
+    .dc-t .dc-f { display: none; }
+}
+
+/* ---------- หน้าโหลดโปรแกรมครั้งแรก (index.html) ----------
+   Blazor ตั้ง --blazor-load-percentage ("45%") และ --blazor-load-percentage-text ("\"45%\"") ระหว่างดาวน์โหลด
+   ภาพการ์ตูนสีจะค่อย ๆ ปรากฏจากล่างขึ้นบน (เหมือนเติมน้ำยา) จนเต็มที่ 100% */
+.ld { --p: var(--blazor-load-percentage, 0%); min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 14px; padding: 24px max(16px, env(safe-area-inset-right, 0px)) 32px max(16px, env(safe-area-inset-left, 0px)); text-align: center; color: var(--text); }
+.ld-art { position: relative; width: min(280px, 70vw); aspect-ratio: 4 / 3; }
+.ld-art svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.ld-gray { filter: grayscale(1) contrast(.8); opacity: .32; }
+.ld-color { clip-path: inset(calc(100% - var(--p)) 0 0 0); transition: clip-path .35s ease-out; }
+.ld-line { position: absolute; left: -2%; right: -2%; bottom: var(--p); height: 3px; border-radius: 3px; transition: bottom .35s ease-out;
+    background: linear-gradient(90deg, transparent, #ff8a8a 20%, #7fb2ff 80%, transparent); box-shadow: 0 0 12px rgba(127, 178, 255, .7); opacity: .9; }
+.ld-title { font-size: 18px; font-weight: 700; letter-spacing: .01em; margin-top: 4px; }
+.ld-row { display: flex; align-items: center; gap: 12px; width: min(380px, 86vw); }
+.ld-bar { flex: 1 1 auto; height: 12px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); overflow: hidden; }
+.ld-bar span { display: block; height: 100%; width: var(--p); border-radius: inherit; transition: width .35s ease-out;
+    background: linear-gradient(90deg, #d62f3a, #8a4fc0 50%, #1f4fa8); background-size: 360px 100%; }
+/* ตัวเลข % อยู่แถวเดียวกับแถบ — ตัวอักษรไล่สีแดง→ม่วง→น้ำเงิน เหมือนแถบ */
+.ld-num { flex: none; min-width: 3.6em; text-align: right; font-size: 22px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums;
+    background: linear-gradient(90deg, #d62f3a, #8a4fc0 50%, #1f4fa8); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.ld-num::after { content: var(--blazor-load-percentage-text, "0%"); }
+.ld-note { margin: 0; font-size: 13px; color: var(--muted); }
+:root[data-theme="dark"] .ld-gray { opacity: .22; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ld-gray { opacity: .22; } }
+@media (prefers-reduced-motion: reduce) { .ld-color, .ld-line, .ld-bar span { transition: none; } }

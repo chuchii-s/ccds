@@ -57,6 +57,11 @@ public record CcdsResult
     public decimal LeasingPerMonth { get; init; }
 
     // ----- Powder -----
+    /// <summary>น้ำยาฟอกต่อ Treatment (ลิตร) = Dialysate flow × (เวลาฟอก + Priming) (ใช้ในโหมด Dialysate flow)</summary>
+    public decimal DialysateLitersPerTreat { get; init; }
+    /// <summary>ลิตรน้ำยาเข้มข้น A / B ต่อ Treatment ที่ใช้คิดผง (ตามวิธีคิดที่เลือกในข้อ 5)</summary>
+    public decimal PowderLiterPerTreatA { get; init; }
+    public decimal PowderLiterPerTreatB { get; init; }
     public required PowderResult PowderA { get; init; }
     public required PowderResult PowderB { get; init; }
 
@@ -147,22 +152,35 @@ public static class CcdsCalculator
         decimal leasingMonth = Div(leasingTotal, i.InstallmentYears * 12);
 
         // ---------- 3) ผงผสม ----------
-        var powderA = Powder("A", i.PowderA, literA);
-        var powderB = Powder("B", i.PowderB, literB);
+        // ลิตรน้ำยาเข้มข้นที่ใช้ต่อ Treatment (ใช้คิด Treatment/กล่อง และลิตรที่ต้องผสม)
+        //   โหมดลิตร (เดิม)      = ลิตรที่ใช้จริงจากแกลลอนในข้อ 2
+        //   โหมด Dialysate flow = flow × (เวลาฟอก + Priming) → ลิตรน้ำยาฟอก; A = ÷ ส่วนรวม, B = × สัดส่วน B ÷ ส่วนรวม
+        bool flow = i.PowderMode == PowderCalcMode.DialysateFlow;
+        decimal dialysate = DialysateLiters(i);
+        //   กรอกเองในข้อ 5 (ลิตร / Tx หรือ ผสมแล้ว=แกลลอน) = ใช้ค่าที่กรอกแทน
+        decimal? ownA = OwnLitersPerTx(i, i.PowderA), ownB = OwnLitersPerTx(i, i.PowderB);
+        //   ลิตรที่ผสม = Treatment × ลิตร/Tx เมื่อมี Treatment/เดือน; ถ้า Treatment/เดือน = 0 ใช้ปริมาณจากแกลลอน (ไม่ให้ค่าผงเป็น 0 ทั้งที่ยังใช้น้ำยา)
+        bool fixA = (flow || ownA is not null) && t > 0, fixB = (flow || ownB is not null) && t > 0;
+        decimal pLiterA = ownA ?? (flow ? Div(dialysate, i.MixRatioTotal) : literA);
+        decimal pLiterB = ownB ?? (flow ? Div(dialysate * i.MixRatioB, i.MixRatioTotal) : literB);
+        var powderA = Powder("A", i.PowderA, pLiterA, BoxLitersA);
+        var powderB = Powder("B", i.PowderB, pLiterB, BoxLitersB);
 
         // ---------- 4) ใช้ระบบ CCDS ----------
         // ลิตรที่ต้องผสม: คูณก่อนหาร (ไม่ให้ทศนิยมคลาด) และไม่ขึ้นกับ Treatment/เดือน = 0
         //   สูตร A ที่ใช้ผง = Treatment ของสูตร × ลิตร/Treatment เฉลี่ยของ A (= แกลลอนของสูตร × ลิตรต่อแกลลอน เมื่อ Treatment อัตโนมัติ)
         //   B = แกลลอน B × ลิตรต่อแกลลอน B
+        //   โหมด Dialysate flow: Treatment × ลิตร/Treatment จาก flow (ทั้ง A และ B)
         // ค่าผงต่อเดือน = ลิตรที่ผสม ÷ ลิตรต่อกล่อง × ราคากล่อง (เท่ากับ Treatment × ต้นทุนผงต่อ Treatment)
-        decimal literBoxA = i.PowderA.MixPerBox * i.PowderA.MixLiter;
-        decimal literBoxB = i.PowderB.MixPerBox * i.PowderB.MixLiter;
+        decimal literBoxA = powderA.LiterPerBox;
+        decimal literBoxB = powderB.LiterPerBox;
         var ccdsRows = new List<CcdsRecipeRow>();
         foreach (var (rec, row) in i.ARecipes.Zip(aRows))
         {
             if (rec.UsePowder)
             {
-                decimal mixed = t > 0 ? Div(row.Treatments * totalA * i.LiterPerGallonA, t) : rec.Gallons * i.LiterPerGallonA;
+                decimal mixed = fixA ? row.Treatments * pLiterA
+                    : t > 0 ? Div(row.Treatments * totalA * i.LiterPerGallonA, t) : rec.Gallons * i.LiterPerGallonA;
                 ccdsRows.Add(new CcdsRecipeRow(rec.Name, true, 0, row.Treatments, 0,
                     powderA.CostPerTreat, Div(mixed, literBoxA) * i.PowderA.CostPerBox, mixed));
             }
@@ -170,7 +188,7 @@ public static class CcdsCalculator
                 ccdsRows.Add(new CcdsRecipeRow(rec.Name, false, rec.Gallons, row.Treatments, i.CcdsPricePerGallonA,
                     Div(rec.Gallons * i.CcdsPricePerGallonA, row.Treatments), rec.Gallons * i.CcdsPricePerGallonA, 0));
         }
-        decimal mixedB = glB * i.LiterPerGallonB;
+        decimal mixedB = fixB ? t * pLiterB : glB * i.LiterPerGallonB;
         ccdsRows.Add(new CcdsRecipeRow("B", true, 0, t, 0, powderB.CostPerTreat, Div(mixedB, literBoxB) * i.PowderB.CostPerBox, mixedB));
 
         decimal powderCost = ccdsRows.Where(r => r.IsPowder).Sum(r => r.CostPerMonth);
@@ -245,6 +263,9 @@ public static class CcdsCalculator
             AvgGallonPerTreatB = avgB,
             LiterPerTreatA = literA,
             LiterPerTreatB = literB,
+            DialysateLitersPerTreat = dialysate,
+            PowderLiterPerTreatA = pLiterA,
+            PowderLiterPerTreatB = pLiterB,
             GlCostPerTreatA = avgA * i.PricePerGallonA,
             GlCostPerTreatB = avgB * i.PricePerGallonB,
             GlCostMonthA = glCostA,
@@ -292,12 +313,33 @@ public static class CcdsCalculator
     private static decimal Runs(decimal liters, int days, decimal tank) =>
         Math.Min(MaxRunsPerDay, Math.Ceiling(Math.Round(Div(Div(liters, days), tank), 6)));
 
-    private static PowderResult Powder(string name, PowderInput p, decimal literPerTreat)
+    /// <summary>น้ำยาฟอกต่อ Treatment (ลิตร) = Dialysate flow (ml/min) × (ชั่วโมงฟอก × 60 + นาที Priming) ÷ 1000</summary>
+    public static decimal DialysateLiters(CcdsInput i) => i.DialysateFlow * (i.TreatmentHours * 60m + i.PrimingMinutes) / 1000m;
+
+    /// <summary>ลิตร / Tx ที่กรอกเองของโหมดที่เลือกอยู่ (null = คำนวณอัตโนมัติ)</summary>
+    public static decimal? OwnLitersPerTx(CcdsInput i, PowderInput p) =>
+        i.PowderMode == PowderCalcMode.DialysateFlow ? p.FlowLitersPerTx : p.LitersPerTx;
+
+    /// <summary>บันทึก ลิตร / Tx ที่กรอกเองให้โหมดที่เลือกอยู่ (null / 0 = กลับเป็นอัตโนมัติ)</summary>
+    public static void SetOwnLitersPerTx(CcdsInput i, PowderInput p, decimal? v)
     {
-        decimal literPerBox = p.MixPerBox * p.MixLiter;
+        if (v is <= 0) v = null;
+        if (i.PowderMode == PowderCalcMode.DialysateFlow) p.FlowLitersPerTx = v; else p.LitersPerTx = v;
+    }
+
+    /// <summary>ลิตรน้ำยาที่ผง 1 กล่องผสมได้: A 1 กล่อง = 100 ลิตร, B 1 กล่อง = 240 ลิตร</summary>
+    public const decimal BoxLitersA = 100m, BoxLitersB = 240m;
+
+    /// <summary>
+    /// ลิตร / Tx = ลิตรน้ำยาที่ใช้ต่อ Treatment (จากข้อ 2 หรือ Dialysate flow ตามที่เลือก)
+    /// ผสมแล้ว=แกลลอน (Treatment / กล่อง) = ลิตรต่อกล่อง (คงที่) ÷ ลิตร / Tx — คำนวณอัตโนมัติทั้งสองโหมด
+    /// (ช่อง "ผสมได้" และ "ลิตร / ครั้ง" ที่เคยกรอกเองไม่ใช้แล้ว)
+    /// </summary>
+    private static PowderResult Powder(string name, PowderInput p, decimal literPerTreat, decimal literPerBox)
+    {
         decimal treatPerBox = Div(literPerBox, literPerTreat);
-        return new PowderResult(name, p.CostPerBox, p.MixPerBox, p.MixLiter, literPerBox, treatPerBox,
-            Div(p.CostPerBox, treatPerBox));
+        return new PowderResult(name, p.CostPerBox, treatPerBox, literPerTreat,
+            literPerBox, treatPerBox, Div(p.CostPerBox, treatPerBox));
     }
 
     /// <summary>
@@ -400,7 +442,15 @@ public static class CcdsCalculator
             p.CostPerBox = C(p.CostPerBox, Price);
             p.MixPerBox = C(p.MixPerBox, 10_000m, 2);
             p.MixLiter = C(p.MixLiter, 10_000m, 2);
+            if (p.LitersPerTx is decimal lt) p.LitersPerTx = lt > 0 ? C(lt, 1_000m) : null;   // 0 / ติดลบ = กลับเป็นอัตโนมัติ
+            if (p.FlowLitersPerTx is decimal ft) p.FlowLitersPerTx = ft > 0 ? C(ft, 1_000m) : null;
         }
+        if (!Enum.IsDefined(i.PowderMode)) i.PowderMode = PowderCalcMode.Liters;
+        i.DialysateFlow = C(i.DialysateFlow, 2_000m, 2);
+        i.TreatmentHours = C(i.TreatmentHours, 24m, 2);
+        i.PrimingMinutes = C(i.PrimingMinutes, 600m, 2);
+        i.MixRatioB = C(i.MixRatioB, 1_000m, 4);
+        i.MixRatioTotal = C(i.MixRatioTotal, 10_000m, 4);
         i.WaterRate = C(i.WaterRate, Price);
         i.WaterM3Per1000Liter = C(i.WaterM3Per1000Liter, 10_000m);
         i.ElectricRate = C(i.ElectricRate, 10_000m);

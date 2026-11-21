@@ -19,7 +19,90 @@
     </script>
 </head>
 <body>
-    <div id="app"><div class="boot">กำลังโหลด CCDS Feasibility Simulator…</div></div>
+    <div id="app">
+        <!-- หน้าโหลดโปรแกรมครั้งแรก: ภาพการ์ตูนถังผสมน้ำยา A/B ไล่สีจากล่างขึ้นบนตาม % ที่ดาวน์โหลด
+             (Blazor ตั้งค่า --blazor-load-percentage / --blazor-load-percentage-text ให้เองระหว่างโหลด) -->
+        <div class="ld" role="status" aria-live="polite">
+            <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+                <defs>
+                    <linearGradient id="ld-body" x1="0" x2="1"><stop offset="0" stop-color="#dfe5ec"/><stop offset=".18" stop-color="#f8fafc"/><stop offset=".8" stop-color="#eef2f6"/><stop offset="1" stop-color="#cfd7e1"/></linearGradient>
+                    <linearGradient id="ld-cap" x1="0" x2="1"><stop offset="0" stop-color="#b9c3cf"/><stop offset=".5" stop-color="#e3e8ee"/><stop offset="1" stop-color="#aab5c2"/></linearGradient>
+                    <linearGradient id="ld-liqA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff8a8a"/><stop offset="1" stop-color="#d62f3a"/></linearGradient>
+                    <linearGradient id="ld-liqB" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7fb2ff"/><stop offset="1" stop-color="#1f4fa8"/></linearGradient>
+                    <symbol id="ld-art" viewBox="0 0 400 300">
+                        <ellipse cx="205" cy="291" rx="196" ry="8" fill="#0b1a33" opacity=".12"/>
+                        <!-- ถังสูง A -->
+                        <g stroke="#3d4a5c" stroke-width="3" stroke-linejoin="round">
+                            <rect x="18" y="16" width="104" height="270" rx="10" fill="url(#ld-body)"/>
+                            <rect x="14" y="12" width="112" height="22" rx="8" fill="url(#ld-cap)"/>
+                            <rect x="26" y="42" width="88" height="128" rx="5" fill="#fbfcfe"/>
+                            <rect x="34" y="52" width="14" height="110" rx="7" fill="#e9eef4"/>
+                            <rect x="34" y="52" width="14" height="110" rx="7" fill="url(#ld-liqA)" class="ld-liq"/>
+                            <rect x="26" y="176" width="88" height="102" rx="5" fill="#f4f7fa"/>
+                            <rect x="58" y="184" width="24" height="7" rx="3.5" fill="#8b97a6"/>
+                            <rect x="58" y="46" width="24" height="7" rx="3.5" fill="#8b97a6"/>
+                        </g>
+                        <g font-family="Sarabun, Inter, system-ui, sans-serif" font-weight="700" fill="#5b6778" font-size="9">
+                            <text x="52" y="62">300</text><text x="52" y="98">200</text><text x="52" y="134">100</text><text x="52" y="158">30</text>
+                        </g>
+                        <g fill="#d62f3a" font-family="Inter, Arial, sans-serif" font-weight="800">
+                            <text x="100" y="128" font-size="34" text-anchor="middle">A</text>
+                        </g>
+                        <text x="100" y="146" font-family="Inter, Arial, sans-serif" font-style="italic" font-size="7.5" fill="#d62f3a" text-anchor="middle">Acid</text>
+                        <rect x="84" y="150" width="32" height="2.5" rx="1" fill="#d62f3a"/>
+
+                        <!-- ถังสูง B -->
+                        <g stroke="#3d4a5c" stroke-width="3" stroke-linejoin="round">
+                            <rect x="130" y="16" width="104" height="270" rx="10" fill="url(#ld-body)"/>
+                            <rect x="126" y="12" width="112" height="22" rx="8" fill="url(#ld-cap)"/>
+                            <rect x="138" y="42" width="88" height="128" rx="5" fill="#fbfcfe"/>
+                            <rect x="146" y="52" width="14" height="110" rx="7" fill="#e9eef4"/>
+                            <rect x="146" y="52" width="14" height="110" rx="7" fill="url(#ld-liqB)" class="ld-liq"/>
+                            <rect x="138" y="176" width="88" height="102" rx="5" fill="#f4f7fa"/>
+                            <rect x="170" y="184" width="24" height="7" rx="3.5" fill="#8b97a6"/>
+                            <rect x="170" y="46" width="24" height="7" rx="3.5" fill="#8b97a6"/>
+                        </g>
+                        <g font-family="Sarabun, Inter, system-ui, sans-serif" font-weight="700" fill="#5b6778" font-size="9">
+                            <text x="164" y="62">300</text><text x="164" y="98">200</text><text x="164" y="134">100</text><text x="164" y="158">30</text>
+                        </g>
+                        <text x="212" y="128" font-family="Inter, Arial, sans-serif" font-weight="800" font-size="34" fill="#1f4fa8" text-anchor="middle">B</text>
+                        <text x="212" y="146" font-family="Inter, Arial, sans-serif" font-style="italic" font-size="7.5" fill="#1f4fa8" text-anchor="middle">Bicarb</text>
+                        <rect x="196" y="150" width="32" height="2.5" rx="1" fill="#1f4fa8"/>
+
+                        <!-- เครื่องผสม B (เตี้ย) -->
+                        <g stroke="#3d4a5c" stroke-width="3" stroke-linejoin="round">
+                            <rect x="242" y="128" width="74" height="158" rx="8" fill="url(#ld-body)"/>
+                            <path d="M238 128 l6 -26 h70 l6 26 z" fill="#e8edf3"/>
+                            <rect x="248" y="106" width="62" height="18" rx="4" fill="#2f63c7"/>
+                        </g>
+                        <rect x="256" y="110" width="20" height="9" rx="1.5" fill="#9be38a" stroke="#1d3a2a" stroke-width="1.5"/>
+                        <g fill="#e9f0ff"><circle cx="284" cy="112" r="2"/><circle cx="291" cy="112" r="2"/><circle cx="298" cy="112" r="2"/><circle cx="284" cy="119" r="2"/><circle cx="291" cy="119" r="2"/><circle cx="298" cy="119" r="2"/></g>
+                        <rect x="266" y="140" width="26" height="7" rx="3.5" fill="#8b97a6" stroke="#3d4a5c" stroke-width="2"/>
+                        <text x="279" y="210" font-family="Inter, Arial, sans-serif" font-weight="800" font-size="30" fill="#1f4fa8" text-anchor="middle">B</text>
+
+                        <!-- เครื่องผสม A (เตี้ย) -->
+                        <g stroke="#3d4a5c" stroke-width="3" stroke-linejoin="round">
+                            <rect x="322" y="128" width="74" height="158" rx="8" fill="url(#ld-body)"/>
+                            <path d="M318 128 l6 -26 h70 l6 26 z" fill="#e8edf3"/>
+                            <rect x="328" y="106" width="62" height="18" rx="4" fill="#d9363e"/>
+                        </g>
+                        <rect x="336" y="110" width="20" height="9" rx="1.5" fill="#9be38a" stroke="#1d3a2a" stroke-width="1.5"/>
+                        <g fill="#fff0f0"><circle cx="364" cy="112" r="2"/><circle cx="371" cy="112" r="2"/><circle cx="378" cy="112" r="2"/><circle cx="364" cy="119" r="2"/><circle cx="371" cy="119" r="2"/><circle cx="378" cy="119" r="2"/></g>
+                        <rect x="346" y="140" width="26" height="7" rx="3.5" fill="#8b97a6" stroke="#3d4a5c" stroke-width="2"/>
+                        <text x="359" y="210" font-family="Inter, Arial, sans-serif" font-weight="800" font-size="30" fill="#d62f3a" text-anchor="middle">A</text>
+                    </symbol>
+                </defs>
+            </svg>
+            <div class="ld-art" aria-hidden="true">
+                <svg class="ld-gray" viewBox="0 0 400 300"><use href="#ld-art"/></svg>
+                <svg class="ld-color" viewBox="0 0 400 300"><use href="#ld-art"/></svg>
+                <span class="ld-line"></span>
+            </div>
+            <div class="ld-title">CCDS Feasibility Simulator</div>
+            <div class="ld-row"><div class="ld-bar"><span></span></div><b class="ld-num"></b></div>
+            <p class="ld-note">ครั้งแรกอาจใช้เวลาสักครู่ • ครั้งต่อไปจะเปิดเร็วขึ้น</p>
+        </div>
+    </div>
 
     <div id="blazor-error-ui">
         เกิดข้อผิดพลาด <a href="" class="reload">โหลดหน้าใหม่</a>

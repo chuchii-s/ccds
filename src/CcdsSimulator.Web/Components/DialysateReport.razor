@@ -1,0 +1,118 @@
+@* รายงาน A4 (1 หน้า) ของหน้า "คำนวณน้ำยา" — ใช้รูปแบบเดียวกับรายงานสถานที่ (พิมพ์ / PDF / JPG) *@
+@{
+    var i = DialysateCalculator.Sanitized(Input);
+    var r = DialysateCalculator.Calculate(i);
+}
+<section class="page">
+    <div class="ph">
+        <div class="ph-top">
+            <div>
+                <div class="t1">Dialysate <small>Concentrate Calculator</small></div>
+                <div class="t2">คำนวณปริมาณการใช้น้ำยา</div>
+            </div>
+            <div class="meta">
+                <div>DFR @Num(i.FlowRate) mL/min • @N0(r.TotalMinutes) นาที/รอบ</div>
+                <div>@Num(i.CasesPerDay) รอบ/วัน • @N0(r.CasesPerMonth) รอบ/เดือน</div>
+            </div>
+        </div>
+    </div>
+    <div class="content">
+        <div class="r-kpis">
+            @Kpi("Dialysate ต่อ 1 รอบ", N2(r.DialysateLiters), "ลิตร", $"A {N2(r.LitersA)} • B {N2(r.LitersB)} ลิตร", "navy")
+            @Kpi("ต้นทุนน้ำยา / รอบ", N2(r.CostPerCase), "บาท", $"A {N2(r.CostA)} • B {N2(r.CostB)} บาท", "teal")
+            @Kpi("ต้นทุนน้ำยา / เดือน", N0(r.Cost.PerMonth), "บาท", $"{N0(r.CasesPerMonth)} รอบ/เดือน", "navy")
+            @Kpi("แกลลอนที่ต้องสั่ง / เดือน", N0(r.GallonsALine.PerMonth + r.GallonsBLine.PerMonth), "แกลลอน", $"A {N0(r.GallonsALine.PerMonth)} • B {N0(r.GallonsBLine.PerMonth)}", "teal")
+        </div>
+
+        <div class="cols" style="grid-template-columns: 1fr 1.25fr">
+            <div>
+                <div class="sec">1. ข้อมูลทั่วไป</div>
+                <table class="rt"><tbody>
+                    @Kv("เวลาฟอก (Treatment time)", $"{Num(i.TreatmentHours)} ชั่วโมง")
+                    @Kv("Priming", $"{Num(i.PrimingMinutes)} นาที")
+                    @Kv("Recirculation", $"{Num(i.RecirculationMinutes)} นาที")
+                    @Kv("Fill dialyser", $"{Num(i.FillMinutes)} นาที")
+                    @Kv("Dialysate Flow Rate (DFR)", $"{Num(i.FlowRate)} mL/min")
+                    @Kv("สัดส่วน A : B : รวม", $"{Num(i.RatioA)} : {Num(i.RatioB)} : {Num(i.RatioTotal)}")
+                </tbody></table>
+            </div>
+            <div>
+                <div class="sec">2. ผลการคำนวณต่อ 1 รอบ</div>
+                <table class="rt">
+                    <thead><tr><th class="l">รายการ</th><th>ลิตร</th><th class="l">สูตรที่ใช้</th></tr></thead>
+                    <tbody>
+                        <tr><td class="l">เวลารวมทั้งหมด</td><td>@N0(r.TotalMinutes) นาที</td><td class="l muted">ฟอก × 60 + Priming + Recirc. + Fill</td></tr>
+                        <tr><td class="l">Dialysate ที่ใช้ทั้งหมด</td><td>@N2(r.DialysateLiters)</td><td class="l muted">DFR × เวลารวม ÷ 1,000</td></tr>
+                        <tr><td class="l">A concentrate</td><td>@N2(r.LitersA)</td><td class="l muted">Dialysate × A ÷ รวม</td></tr>
+                        <tr><td class="l">B concentrate</td><td>@N2(r.LitersB)</td><td class="l muted">Dialysate × B ÷ รวม</td></tr>
+                        <tr><td class="l">RO water (@Num(r.RatioRo) ส่วน)</td><td>@N2(r.LitersRo)</td><td class="l muted">Dialysate × RO ÷ รวม</td></tr>
+                        <tr class="tot"><td class="l">รวมทั้งหมด (ตรวจสอบ)</td><td>@N2(r.SumCheck)</td><td class="l"></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div>
+            <div class="sec">3. จำนวนแกลลอน / ต้นทุนต่อ 1 รอบ</div>
+            <table class="rt">
+                <thead><tr><th class="l">รายการ</th><th>ปริมาณที่ใช้ (L)</th><th>ขนาดบรรจุ (L/แกลลอน)</th><th>จำนวนแกลลอน</th><th>ราคา/แกลลอน (บาท)</th><th>ต้นทุน (บาท)</th></tr></thead>
+                <tbody>
+                    <tr><td class="l">A concentrate</td><td>@N2(r.LitersA)</td><td>@Num(i.PackLitersA)</td><td>@N2(r.GallonsA)</td><td>@N2(i.PriceA)</td><td>@N2(r.CostA)</td></tr>
+                    <tr><td class="l">B concentrate</td><td>@N2(r.LitersB)</td><td>@Num(i.PackLitersB)</td><td>@N2(r.GallonsB)</td><td>@N2(i.PriceB)</td><td>@N2(r.CostB)</td></tr>
+                    <tr class="tot"><td class="l" colspan="5">รวมต้นทุนน้ำยา / รอบ</td><td>@N2(r.CostPerCase)</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div>
+            <div class="sec">4. สรุปการใช้ทั้งเดือน (@N0(r.CasesPerMonth) รอบ/เดือน)</div>
+            <table class="rt">
+                <thead><tr><th class="l">รายการ</th><th>ต่อ 1 รอบ</th><th>ต่อวัน</th><th>ต่อเดือน</th><th class="l">หน่วย</th></tr></thead>
+                <tbody>
+                    @Line("A concentrate", r.A, "ลิตร")
+                    @Line("B concentrate", r.B, "ลิตร")
+                    @Line("RO water", r.Ro, "ลิตร")
+                    @Line("Dialysate รวม", r.Dialysate, "ลิตร")
+                    @Line("ต้นทุนน้ำยา", r.Cost, "บาท", tot: true)
+                    @Line("A concentrate (แกลลอน)", r.GallonsALine, "แกลลอน", whole: true)
+                    @Line("B concentrate (แกลลอน)", r.GallonsBLine, "แกลลอน", whole: true)
+                </tbody>
+            </table>
+            <div class="foot-note">จำนวนแกลลอนต่อวัน / ต่อเดือน ปัดขึ้นเป็นแกลลอนเต็ม ใช้สำหรับสั่งซื้อ</div>
+        </div>
+
+        <div class="note-box dc-rnotes">
+            <b>หมายเหตุ / ข้อควรระวัง</b>
+            <ol>
+                <li>อัตราส่วน 1 : 1.225 : 32.775 (รวม 35) เป็นค่าของน้ำยาบางยี่ห้อเท่านั้น ต้องตรวจสอบกับฉลากน้ำยาและ setting ของเครื่องทุกครั้ง</li>
+                <li>ตัวเลขที่ได้เป็นค่าทางทฤษฎี ปริมาณใช้จริงมักสูงกว่าเล็กน้อย จาก dead volume ในสายดูดและน้ำยาที่ค้างก้นแกลลอน</li>
+                <li>หากเครื่องหยุดปั๊ม concentrate (bypass / standby) ระหว่าง priming + recirculation ปริมาณจริงจะต่ำกว่านี้ประมาณ
+                    @Pct1(r.BypassShare) (@Num(i.PrimingMinutes + i.RecirculationMinutes)/@Num(r.TotalMinutes) นาที) หรือ @Pct1(r.BypassShareWithFill) ถ้ารวม fill dialyser ด้วย</li>
+                <li>ถ้า B concentrate เป็นแบบผง (BiCart / cartridge) ไม่ต้องใช้บรรทัด B — ให้คิดเป็นจำนวนกระป๋องตามที่เครื่องกำหนดแทน</li>
+            </ol>
+        </div>
+
+        <div class="pf"><span>CCDS Feasibility Simulator • คำนวณปริมาณการใช้น้ำยา</span><span>@ThaiDateTime(DateTime.Now)</span></div>
+    </div>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public DialysateCalcInput Input { get; set; } = default!;
+
+    private static string Num(decimal v) => v.ToString("#,0.###", System.Globalization.CultureInfo.InvariantCulture);
+    private static string Pct1(decimal v) => v.ToString("0.0%", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static RenderFragment Kpi(string label, string value, string unit, string note, string kind) =>
+        @<div class="r-kpi @kind"><div class="l">@label</div><div class="v">@value <small>@unit</small></div><div class="n">@note</div></div>;
+
+    private static RenderFragment Kv(string a, string b) => @<tr><td class="l">@a</td><td>@b</td></tr>;
+
+    private static RenderFragment Line(string name, DialysateLine l, string unit, bool tot = false, bool whole = false) =>
+        @<tr class="@(tot ? "tot" : "")">
+            <td class="l">@name</td>
+            <td>@N2(l.PerCase)</td>
+            <td>@(whole ? N0(l.PerDay) : N2(l.PerDay))</td>
+            <td>@(whole ? N0(l.PerMonth) : N2(l.PerMonth))</td>
+            <td class="l">@unit</td>
+        </tr>;
+}

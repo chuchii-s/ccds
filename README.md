@@ -45,6 +45,7 @@ dotnet test                                    # ทดสอบสูตร
 | `src/CcdsSimulator.Core/Services/Presets.cs` | ค่าตั้งต้นจากโรงงาน + ข้อมูลตัวอย่าง (ตัวเลขสมมติ) |
 | `src/CcdsSimulator.Web/Pages/` | หน้าโครงการ, แก้ไข, รายงาน, Dashboard, ตั้งค่า |
 | `src/CcdsSimulator.Web/Components/` | ฟอร์ม, แผงผลลัพธ์, รายงาน A4 |
+| `src/CcdsSimulator.Core/Services/DialysateCalculator.cs` + `Pages/Dialysate.razor` | เมนู **คำนวณน้ำยา**: คำนวณปริมาณการใช้น้ำยา A / B / RO ต่อรอบ ต่อวัน ต่อเดือน และต้นทุน (สูตรเดียวกับไฟล์ dialysate_calculator.xlsx) — มีรายงาน A4 (`Components/DialysateReport.razor`, `Pages/DialysateReportPage.razor`), JPG และ Excel (`DialysateExcel.cs`) |
 | `src/CcdsSimulator.Web/Services/ProjectStore.cs` | เก็บข้อมูลใน localStorage |
 | `src/CcdsSimulator.Web/wwwroot/icons/` + `manifest.webmanifest` | ไอคอนโปรแกรม (แท็บเบราว์เซอร์ + หน้าจอโฮม iPhone / iPad / Android) — ต้นแบบคือ `icons/icon.svg` |
 | `src/CcdsSimulator.Web/wwwroot/CCDS_Simulator.html` | โปรแกรมเวอร์ชันไฟล์เดียว (ใช้กับ Export HTML) |
@@ -62,7 +63,8 @@ dotnet test                                    # ทดสอบสูตร
 | ค่าใช้จ่ายแบบ GL | GL A × ราคา A + GL B × ราคา B − GL ทั้งหมด × ราคาขายแกลลอนคืน |
 | Leasing / เดือน | (ราคา + ราคา × ดอกเบี้ย × ปี) ÷ (ปี × 12) |
 | ดอกเบี้ยตามปีผ่อน | 1 ปี 2.85% • 2 ปี 3.25% • 3 ปี 3.50% • 4 ปี 3.60% • 5 ปี 3.55% (แก้ได้ที่ `Services/LeasingRates.cs`) |
-| ผง / Treatment | ราคากล่อง ÷ ((ครั้งผสม/กล่อง × ลิตร/ครั้ง) ÷ ลิตร/Treatment) |
+| ผง / Treatment | ราคากล่อง ÷ ผสมแล้ว=แกลลอน; ผสมแล้ว=แกลลอน = ลิตรต่อกล่อง (A 100 L, B 240 L — `CcdsCalculator.BoxLitersA/B`) ÷ ลิตร / Tx |
+| ลิตร / Treatment (ผง) | ข้อ 5 เลือกได้: **จำนวนลิตร** = ลิตรที่ใช้จริงจากแกลลอนในข้อ 2 • **Dialysate flow** = flow (ml/min) × (ชม.ฟอก × 60 + นาที Priming) ÷ 1000 → A = ÷ ส่วนผสมรวม, B = × สัดส่วน B ÷ ส่วนผสมรวม (ค่าตั้งต้น 1 : 1.225 : รวม 35) — ทั้งสองโหมด ลิตร / Tx และ ผสมแล้ว=แกลลอน คำนวณให้อัตโนมัติ และแก้ตัวเลขเองได้ (เก็บแยกตามโหมด: `PowderInput.LitersPerTx` / `FlowLitersPerTx`; แก้ช่องหนึ่งอีกช่องคำนวณตามสูตรเดิม; ลบตัวเลข = กลับเป็นอัตโนมัติ) |
 | ค่าน้ำ | ลิตรน้ำยาที่ผสม × 2 m³ / 1,000 ลิตร × ค่าน้ำ |
 | รอบผสม/วัน (อัตโนมัติ) | ปัดขึ้น(ลิตรผสมต่อวัน ÷ ขนาดถัง) — ถัง A 100 L, B 120 L |
 | kWh / เดือน | kW × ชม. × จำนวน × รอบ/วัน × วันทำงาน |

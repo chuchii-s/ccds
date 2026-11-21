@@ -25,6 +25,23 @@ public class ExcelTests
         yield return new object[] { "days25", d25 };
         var t0 = Presets.Sample1(); t0.TreatmentsPerMonth = 0;
         yield return new object[] { "tx0", t0 };
+        var flow = Presets.Sample1(); flow.PowderMode = PowderCalcMode.DialysateFlow; flow.PrimingMinutes = 15; flow.ARecipes[2].UsePowder = true;
+        yield return new object[] { "flow", flow };
+        var flowLit = Presets.Sample2(); CcdsCalculator.SwitchMode(flowLit, UsageInputMode.LitersPerTreatment);
+        flowLit.PowderMode = PowderCalcMode.DialysateFlow; flowLit.DialysateFlow = 600; flowLit.TreatmentHours = 4.5m;
+        yield return new object[] { "flowlit", flowLit };
+        var flowBox = Presets.Sample1(); flowBox.PowderMode = PowderCalcMode.DialysateFlow; flowBox.TreatmentHours = 5; flowBox.PrimingMinutes = 30;
+        flowBox.PowderA.MixPerBox = flowBox.PowderA.MixLiter = 0;
+        flowBox.PowderB.MixPerBox = flowBox.PowderB.MixLiter = 0;
+        yield return new object[] { "flowbox", flowBox };
+        var own = Presets.Sample2(); own.PowderA.LitersPerTx = 5; own.PowderB.LitersPerTx = 4.8m;
+        yield return new object[] { "own", own };
+        var ownFlow = Presets.Sample1(); ownFlow.PowderMode = PowderCalcMode.DialysateFlow; ownFlow.PowderB.FlowLitersPerTx = 5; ownFlow.PowderA.LitersPerTx = 9;
+        yield return new object[] { "ownflow", ownFlow };
+        var ownT0 = Presets.Sample1(); ownT0.TreatmentsPerMonth = 0; ownT0.PowderA.LitersPerTx = 5; ownT0.PowderB.LitersPerTx = 6;
+        yield return new object[] { "ownt0", ownT0 };
+        var flowT0 = Presets.Sample2(); flowT0.TreatmentsPerMonth = 0; flowT0.PowderMode = PowderCalcMode.DialysateFlow;
+        yield return new object[] { "flowt0", flowT0 };
         var h40 = Presets.Sample2(); h40.HorizonYears = 40; h40.InstallmentYears = 0;
         yield return new object[] { "h40", h40 };
     }

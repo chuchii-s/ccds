@@ -132,6 +132,24 @@ public class ProjectStore(IJSRuntime js, UserSession user)
         StorageAvailable = await js.InvokeAsync<bool>("ccds.set", DefaultsKey, JsonSerializer.Serialize(d));
     }
 
+    // ---------- หน้า "คำนวณน้ำยา" (จำค่าที่กรอกล่าสุดของผู้ใช้) ----------
+    public const string DialysateKeyBase = "ccds.dialysate.v1";
+    private string DialysateKey => user.Key(DialysateKeyBase);
+
+    public async Task<DialysateCalcInput> GetDialysateAsync()
+    {
+        var raw = await js.InvokeAsync<string?>("ccds.get", DialysateKey);
+        try { if (!string.IsNullOrEmpty(raw) && JsonSerializer.Deserialize<DialysateCalcInput>(raw) is { } d) return d; }
+        catch (Exception e) when (e is JsonException or InvalidOperationException) { }
+        return CcdsSimulator.Services.DialysateCalculator.Defaults();
+    }
+
+    public async Task SaveDialysateAsync(DialysateCalcInput d)
+    {
+        if (!await user.EnsureCurrentAsync()) return;
+        StorageAvailable = await js.InvokeAsync<bool>("ccds.set", DialysateKey, JsonSerializer.Serialize(d));
+    }
+
     // ---------- สำรองข้อมูล ----------
     /// <summary>ไฟล์สำรองทุกสถานที่ (รวมรายการที่อ่านไม่ได้ด้วย เพื่อไม่ให้ข้อมูลหาย)</summary>
     public async Task<string> ExportAllAsync() => (await LoadArrayAsync()).ToJsonString(Pretty);

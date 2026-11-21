@@ -1,0 +1,308 @@
+@page "/dialysate"
+@using System.Text.Json
+@using System.Text.Json.Nodes
+@inject ProjectStore Store
+@inject IJSRuntime JS
+
+@* คำนวณปริมาณการใช้น้ำยา — แบบฟอร์มจากไฟล์ dialysate_calculator.xlsx (สูตรอยู่ใน DialysateCalculator)
+   จัดหน้าแบบเดียวกับหน้าแก้ไขสถานที่: ช่องกรอกด้านซ้าย (ย้อนกลับ/ทำซ้ำแยกข้อ) • ผลคำนวณด้านขวา • ปุ่มรายงาน / JPG / Excel *@
+
+<PageTitle>คำนวณน้ำยา — CCDS Simulator</PageTitle>
+
+@if (input is null)
+{
+    <div class="page-wrap"><div class="card empty">กำลังโหลด…</div></div>
+}
+else
+{
+    var r = DialysateCalculator.Calculate(input);
+
+    <div class="subbar">
+        <div class="crumb"><b>คำนวณปริมาณการใช้น้ำยา</b>
+            <span class="saved">@(saved is null ? "" : $"บันทึกอัตโนมัติแล้ว {saved:HH:mm:ss}")</span></div>
+        <button type="button" class="btn" @onclick="Reset">คืนค่าตั้งต้น</button>
+    </div>
+    @if (jpgOpen)
+    {
+        @* สำเนารายงานที่ซ่อนไว้ (ขนาด A4 จริง) ใช้แปลงเป็นภาพ *@
+        <div id="dc-jpg-src" class="jpg-src" aria-hidden="true"><DialysateReport Input="input" /></div>
+    }
+    <JpgDialog Visible="jpgOpen" SourceId="dc-jpg-src" BaseName="@DialysateReportPage.FileBase" Title="CCDS — คำนวณปริมาณการใช้น้ำยา"
+               PageNames="JpgPages" OnClose="() => jpgOpen = false" />
+
+    <div class="layout dc">
+        <section class="form glass">
+            <div class="card">
+                <h2><span class="num">1</span>ข้อมูลทั่วไป@(UndoRedo("input"))</h2>
+                <div class="grid g3">
+                    <label>เวลาฟอก (Treatment time)<span class="inp" style="--u:7"><input type="number" step="any" @bind="input.TreatmentHours" @bind:after="Changed" /><span class="u">ชั่วโมง</span></span></label>
+                    <label>Priming<span class="inp" style="--u:4"><input type="number" step="any" @bind="input.PrimingMinutes" @bind:after="Changed" /><span class="u">นาที</span></span></label>
+                    <label>Recirculation<span class="inp" style="--u:4"><input type="number" step="any" @bind="input.RecirculationMinutes" @bind:after="Changed" /><span class="u">นาที</span></span></label>
+                    <label>Fill dialyser<span class="inp" style="--u:4"><input type="number" step="any" @bind="input.FillMinutes" @bind:after="Changed" /><span class="u">นาที</span></span></label>
+                    <label>Dialysate Flow Rate (DFR)<span class="inp" style="--u:6"><input type="number" step="any" @bind="input.FlowRate" @bind:after="Changed" /><span class="u">mL/min</span></span></label>
+                    <label>สัดส่วน A concentrate<span class="inp" style="--u:4"><input type="number" step="any" @bind="input.RatioA" @bind:after="Changed" /><span class="u">ส่วน</span></span></label>
+                    <label>สัดส่วน B concentrate<span class="inp" style="--u:4"><input type="number" step="any" @bind="input.RatioB" @bind:after="Changed" /><span class="u">ส่วน</span></span></label>
+                    <label>สัดส่วนรวม Dialysate<span class="inp" style="--u:4"><input type="number" step="any" @bind="input.RatioTotal" @bind:after="Changed" /><span class="u">ส่วน</span></span></label>
+                </div>
+                <div class="calc">เวลารวม <b>@N0(r.TotalMinutes)</b> นาที • Dialysate <b>@N2(r.DialysateLiters)</b> ลิตร/รอบ • RO water <b>@Num(r.RatioRo)</b> ส่วน</div>
+                @if (r.RatioInvalid)
+                {
+                    <div class="calc warn">สัดส่วน A + B (@Num(input.RatioA + input.RatioB)) มากกว่าสัดส่วนรวม (@Num(input.RatioTotal)) — RO water ติดลบ กรุณาตรวจสัดส่วนอีกครั้ง</div>
+                }
+            </div>
+
+            <div class="card">
+                <h2><span class="num">2</span>ขนาดบรรจุและราคาน้ำยา@(UndoRedo("pack"))</h2>
+                <div class="grid g2">
+                    <label>ขนาดบรรจุ A concentrate<span class="inp" style="--u:7"><input type="number" step="any" @bind="input.PackLitersA" @bind:after="Changed" /><span class="u">L/แกลลอน</span></span></label>
+                    <label>ราคา A concentrate<span class="inp" style="--u:9"><input type="number" step="any" @bind="input.PriceA" @bind:after="Changed" /><span class="u">บาท/แกลลอน</span></span></label>
+                    <label>ขนาดบรรจุ B concentrate<span class="inp" style="--u:7"><input type="number" step="any" @bind="input.PackLitersB" @bind:after="Changed" /><span class="u">L/แกลลอน</span></span></label>
+                    <label>ราคา B concentrate<span class="inp" style="--u:9"><input type="number" step="any" @bind="input.PriceB" @bind:after="Changed" /><span class="u">บาท/แกลลอน</span></span></label>
+                </div>
+                <div class="calc">ต้นทุนน้ำยา / รอบ: A <b>@N2(r.CostA)</b> + B <b>@N2(r.CostB)</b> = <b>@N2(r.CostPerCase)</b> บาท
+                    <div class="calc-sub">ขนาดบรรจุและราคา ใส่ตามจริงของโรงพยาบาล • ถ้า B concentrate เป็นแบบผง (BiCart / cartridge) ให้คิดเป็นจำนวนกระป๋องตามที่เครื่องกำหนดแทน</div></div>
+            </div>
+
+            <div class="card">
+                <h2><span class="num">3</span>จำนวนรอบ@(UndoRedo("cases"))</h2>
+                <div class="grid g3">
+                    <label>จำนวนรอบ / วัน<span class="inp" style="--u:3"><input type="number" step="any" @bind="input.CasesPerDay" @bind:after="ChangedAuto" /><span class="u">รอบ</span></span></label>
+                    <label>จำนวนวันทำการ / เดือน<span class="inp" style="--u:3"><input type="number" step="any" @bind="input.DaysPerMonth" @bind:after="ChangedAuto" /><span class="u">วัน</span></span></label>
+                    @* คำนวณอัตโนมัติ (รอบ/วัน × วันทำการ) หรือแก้ตัวเลขเอง — ลบตัวเลข = กลับเป็นอัตโนมัติ *@
+                    <label>จำนวนรอบรวม / เดือน
+                        <span class="inp" style="--u:3"><input @key="monthEdits" type="number" step="any" class="@(input.CasesPerMonth is null ? "auto" : "")"
+                            value="@r.CasesPerMonth.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)" @onchange="SetMonth"
+                            title="รอบ/วัน × วันทำการ/เดือน — แก้ได้ (ลบตัวเลข = คำนวณอัตโนมัติ)" /><span class="u">รอบ</span></span>
+                        <small class="dc-hint">@(input.CasesPerMonth is null ? $"อัตโนมัติ = {Num(input.CasesPerDay)} × {Num(input.DaysPerMonth)}" : "กรอกเอง — ลบตัวเลขเพื่อคำนวณอัตโนมัติ")</small>
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-actions glass">
+                <a class="btn primary" href="dialysate/report"><span class="lbl">ดูรายงาน / พิมพ์ PDF</span></a>
+                <button class="btn" @onclick="() => { jpgOpen = true; message = null; }" aria-haspopup="dialog">
+                    <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="9" cy="10" r="1.8" /><path d="M21 16l-5-5-9 9" /></svg>
+                    JPG
+                </button>
+                <button class="btn xl" @onclick="ExportExcel" title="ไฟล์ Excel พร้อมสูตรคำนวณ — แก้ตัวเลขช่องสีฟ้าแล้วคำนวณใหม่ได้เอง">
+                    <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M3 15h18M9 3v18" /></svg>
+                    Excel
+                </button>
+            </div>
+            @if (!string.IsNullOrEmpty(message)) { <div class="msg">@message</div> }
+        </section>
+
+        <aside class="results glass">
+            <div class="kpis">
+                <div class="kpi navy"><span>Dialysate ต่อ 1 รอบ</span><b>@N2(r.DialysateLiters)</b><small>ลิตร • A @N2(r.LitersA) • B @N2(r.LitersB)</small></div>
+                <div class="kpi teal"><span>ต้นทุนน้ำยา / รอบ</span><b>@N2(r.CostPerCase)</b><small>บาท</small></div>
+                <div class="kpi navy"><span>ต้นทุนน้ำยา / เดือน</span><b>@N0(r.Cost.PerMonth)</b><small>บาท • @N0(r.CasesPerMonth) รอบ</small></div>
+                <div class="kpi teal"><span>แกลลอนที่ต้องสั่ง / เดือน</span><b>@N0(r.GallonsALine.PerMonth + r.GallonsBLine.PerMonth)</b><small>A @N0(r.GallonsALine.PerMonth) • B @N0(r.GallonsBLine.PerMonth) แกลลอน</small></div>
+            </div>
+
+            <div class="card">
+                <h3>ผลการคำนวณต่อ 1 รอบ</h3>
+                <table class="tbl compact dc-t">
+                    <thead><tr><th>รายการ</th><th class="r">ปริมาณ (ลิตร)</th><th class="dc-f">สูตรที่ใช้</th></tr></thead>
+                    <tbody>
+                        <tr><td>A concentrate</td><td class="r"><b>@N2(r.LitersA)</b></td><td class="muted dc-f">Dialysate × A ÷ รวม</td></tr>
+                        <tr><td>B concentrate</td><td class="r"><b>@N2(r.LitersB)</b></td><td class="muted dc-f">Dialysate × B ÷ รวม</td></tr>
+                        <tr><td>RO water</td><td class="r"><b>@N2(r.LitersRo)</b></td><td class="muted dc-f">Dialysate × RO ÷ รวม</td></tr>
+                    </tbody>
+                    <tfoot>
+                        <tr><td>รวมทั้งหมด (ตรวจสอบ)</td><td class="r">@N2(r.SumCheck)</td><td class="dc-f"></td></tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <div class="card">
+                <h3>จำนวนแกลลอน / ต้นทุนต่อ 1 รอบ</h3>
+                <table class="tbl compact dc-t">
+                    <thead><tr><th>รายการ</th><th class="r">ใช้ (L)</th><th class="r">แกลลอน</th><th class="r">ต้นทุน (บาท)</th></tr></thead>
+                    <tbody>
+                        <tr><td>A concentrate</td><td class="r">@N2(r.LitersA)</td><td class="r">@N2(r.GallonsA)</td><td class="r"><b>@N2(r.CostA)</b></td></tr>
+                        <tr><td>B concentrate</td><td class="r">@N2(r.LitersB)</td><td class="r">@N2(r.GallonsB)</td><td class="r"><b>@N2(r.CostB)</b></td></tr>
+                    </tbody>
+                    <tfoot><tr><td colspan="3">รวมต้นทุนน้ำยา / รอบ</td><td class="r">@N2(r.CostPerCase)</td></tr></tfoot>
+                </table>
+            </div>
+
+            <div class="card">
+                <h3>สรุปการใช้ทั้งเดือน <small class="muted">(@N0(r.CasesPerMonth) รอบ/เดือน)</small></h3>
+                <div class="tbl-x">
+                    <table class="tbl compact dc-t">
+                        <thead><tr><th>รายการ</th><th class="r">ต่อ 1 รอบ</th><th class="r">ต่อวัน</th><th class="r">ต่อเดือน</th><th>หน่วย</th></tr></thead>
+                        <tbody>
+                            @Line("A concentrate", r.A, "ลิตร")
+                            @Line("B concentrate", r.B, "ลิตร")
+                            @Line("RO water", r.Ro, "ลิตร")
+                            @Line("Dialysate รวม", r.Dialysate, "ลิตร")
+                            @Line("ต้นทุนน้ำยา", r.Cost, "บาท", bold: true)
+                            @Line("A concentrate (แกลลอน)", r.GallonsALine, "แกลลอน", whole: true)
+                            @Line("B concentrate (แกลลอน)", r.GallonsBLine, "แกลลอน", whole: true)
+                        </tbody>
+                    </table>
+                </div>
+                <p class="muted small dc-foot">จำนวนแกลลอนต่อวัน / ต่อเดือน ปัดขึ้นเป็นแกลลอนเต็ม ใช้สำหรับสั่งซื้อ</p>
+            </div>
+
+            <div class="card dc-notes">
+                <h3>หมายเหตุ / ข้อควรระวัง</h3>
+                <ol>
+                    <li>อัตราส่วน 1 : 1.225 : 32.775 (รวม 35) เป็นค่าของน้ำยาบางยี่ห้อเท่านั้น ต้องตรวจสอบกับฉลากน้ำยาและ setting ของเครื่องทุกครั้ง</li>
+                    <li>ตัวเลขที่ได้เป็นค่าทางทฤษฎี ปริมาณใช้จริงมักสูงกว่าเล็กน้อย จาก dead volume ในสายดูดและน้ำยาที่ค้างก้นแกลลอน</li>
+                    <li>หากเครื่องหยุดปั๊ม concentrate (bypass / standby) ระหว่าง priming + recirculation ปริมาณจริงจะต่ำกว่านี้ประมาณ
+                        <b>@Pct1(r.BypassShare)</b> (@Num(input.PrimingMinutes + input.RecirculationMinutes)/@Num(r.TotalMinutes) นาที)
+                        หรือ <b>@Pct1(r.BypassShareWithFill)</b> ถ้ารวม fill dialyser ด้วย</li>
+                    <li>ราคาและขนาดบรรจุในข้อ 2 เป็นตัวอย่างสมมติ กรุณาแก้เป็นค่าจริง</li>
+                </ol>
+            </div>
+        </aside>
+    </div>
+}
+
+@code {
+    private static readonly string[] JpgPages = ["คำนวณปริมาณการใช้น้ำยา"];
+    private DialysateCalcInput? input;
+    private DateTime? saved;
+    private string? message;
+    private bool jpgOpen;
+    private int monthEdits;   // เปลี่ยนทุกครั้งที่แก้ → วาดช่องใหม่ ให้แสดงค่าที่ใช้จริงเสมอ
+
+    protected override async Task OnInitializedAsync()
+    {
+        input = await Store.GetDialysateAsync();
+        ResetHistory();
+    }
+
+    private async Task Changed()
+    {
+        if (input is null) return;
+        RecordHistory();
+        await Store.SaveDialysateAsync(input);
+        saved = DateTime.Now;
+    }
+
+    /// <summary>แก้รอบ/วัน หรือ วันทำการ → จำนวนรอบ/เดือนกลับไปคำนวณอัตโนมัติ (ค่าที่แก้ล่าสุดเป็นตัวกำหนด)</summary>
+    private Task ChangedAuto()
+    {
+        if (input is not null) input.CasesPerMonth = null;
+        monthEdits++;
+        return Changed();
+    }
+
+    private Task SetMonth(ChangeEventArgs e)
+    {
+        if (input is null) return Task.CompletedTask;
+        input.CasesPerMonth = decimal.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture, out var v) && v > 0 ? v : null;
+        monthEdits++;
+        return Changed();
+    }
+
+    private async Task Reset()
+    {
+        var d = DialysateCalculator.Defaults();
+        foreach (var p in typeof(DialysateCalcInput).GetProperties()) p.SetValue(input, p.GetValue(d));   // คงวัตถุเดิม (ย้อนกลับได้)
+        monthEdits++;
+        await Changed();
+    }
+
+    private async Task ExportExcel()
+    {
+        message = null;
+        try
+        {
+            var bytes = DialysateExcel.Build(input!);
+            await JS.InvokeVoidAsync("ccds.download", DialysateReportPage.FileBase + ".xlsx", bytes,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            message = "ดาวน์โหลด Excel แล้ว — ช่องสีฟ้าแก้ไขได้ ช่องอื่นเป็นสูตรคำนวณอัตโนมัติ";
+        }
+        catch (Exception ex) { message = "สร้างไฟล์ Excel ไม่สำเร็จ: " + ex.Message; }
+    }
+
+    // ================= ย้อนกลับ / ทำซ้ำ แยกตามข้อ (แบบเดียวกับหน้าแก้ไขสถานที่) =================
+    private const int MaxHistory = 50;
+    private static readonly Dictionary<string, string[]> SectionProps = new()
+    {
+        ["input"] = [nameof(DialysateCalcInput.TreatmentHours), nameof(DialysateCalcInput.PrimingMinutes), nameof(DialysateCalcInput.RecirculationMinutes),
+                     nameof(DialysateCalcInput.FillMinutes), nameof(DialysateCalcInput.FlowRate), nameof(DialysateCalcInput.RatioA),
+                     nameof(DialysateCalcInput.RatioB), nameof(DialysateCalcInput.RatioTotal)],
+        ["pack"] = [nameof(DialysateCalcInput.PackLitersA), nameof(DialysateCalcInput.PriceA), nameof(DialysateCalcInput.PackLitersB), nameof(DialysateCalcInput.PriceB)],
+        ["cases"] = [nameof(DialysateCalcInput.CasesPerDay), nameof(DialysateCalcInput.DaysPerMonth), nameof(DialysateCalcInput.CasesPerMonth)],
+    };
+    private readonly Dictionary<string, List<string>> undo = SectionProps.Keys.ToDictionary(k => k, _ => new List<string>());
+    private readonly Dictionary<string, List<string>> redo = SectionProps.Keys.ToDictionary(k => k, _ => new List<string>());
+    private readonly Dictionary<string, string> current = new();
+
+    private void ResetHistory()
+    {
+        var node = ToNode(input!);
+        foreach (var k in SectionProps.Keys) { undo[k].Clear(); redo[k].Clear(); current[k] = Slice(node, k); }
+    }
+
+    private void RecordHistory()
+    {
+        var node = ToNode(input!);
+        foreach (var k in SectionProps.Keys)
+        {
+            var now = Slice(node, k);
+            if (now == current[k]) continue;
+            undo[k].Add(current[k]);
+            if (undo[k].Count > MaxHistory) undo[k].RemoveAt(0);
+            redo[k].Clear();
+            current[k] = now;
+        }
+    }
+
+    private Task Undo(string k) => Step(k, undo[k], redo[k]);
+    private Task Redo(string k) => Step(k, redo[k], undo[k]);
+
+    private async Task Step(string k, List<string> from, List<string> to)
+    {
+        if (from.Count == 0 || input is null) return;
+        to.Add(current[k]);
+        current[k] = from[^1];
+        from.RemoveAt(from.Count - 1);
+        var all = ToNode(input);
+        var slice = JsonNode.Parse(current[k])!.AsObject();
+        foreach (var p in SectionProps[k]) all[p] = slice[p]?.DeepClone();
+        var merged = all.Deserialize<DialysateCalcInput>()!;
+        foreach (var p in SectionProps[k])
+        {
+            var prop = typeof(DialysateCalcInput).GetProperty(p)!;
+            prop.SetValue(input, prop.GetValue(merged));
+        }
+        monthEdits++;
+        await Store.SaveDialysateAsync(input);
+        saved = DateTime.Now;
+    }
+
+    private static JsonObject ToNode(DialysateCalcInput i) => JsonSerializer.SerializeToNode(i)!.AsObject();
+
+    private static string Slice(JsonObject node, string k)
+    {
+        var o = new JsonObject();
+        foreach (var p in SectionProps[k]) o[p] = node[p]?.DeepClone();
+        return o.ToJsonString();
+    }
+
+    private RenderFragment UndoRedo(string k) =>
+        @<span class="ur">
+            <button class="ur-btn" title="ย้อนกลับ (Undo) ในข้อนี้" aria-label="ย้อนกลับ" disabled="@(undo[k].Count == 0)" @onclick="() => Undo(k)">↶</button>
+            <button class="ur-btn" title="ทำซ้ำ (Redo) ในข้อนี้" aria-label="ทำซ้ำ" disabled="@(redo[k].Count == 0)" @onclick="() => Redo(k)">↷</button>
+        </span>;
+
+    // ---------- รูปแบบตัวเลข ----------
+    private static string Num(decimal v) => v.ToString("#,0.###", System.Globalization.CultureInfo.InvariantCulture);
+    private static string Pct1(decimal v) => v.ToString("0.0%", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static RenderFragment Line(string name, DialysateLine l, string unit, bool bold = false, bool whole = false) =>
+        @<tr class="@(bold ? "dc-cost" : "")">
+            <td>@name</td>
+            <td class="r">@N2(l.PerCase)</td>
+            <td class="r">@(whole ? N0(l.PerDay) : N2(l.PerDay))</td>
+            <td class="r"><b>@(whole ? N0(l.PerMonth) : N2(l.PerMonth))</b></td>
+            <td class="muted">@unit</td>
+        </tr>;
+}

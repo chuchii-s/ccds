@@ -175,29 +175,70 @@
 
 <div class="card">
     <h2><span class="num">@(++sec)</span>ผงผสม (Powder)@(UndoRedo("powder"))</h2>
+    <div class="mode-row">
+        <span class="muted">คิดราคา/Tx จาก</span>
+        <div class="seg mode">
+            <button class="@(!Flow ? "on" : "")" @onclick="() => SetPowderMode(PowderCalcMode.Liters)">จำนวนลิตร (ข้อ 2)</button>
+            <button class="@(Flow ? "on" : "")" @onclick="() => SetPowderMode(PowderCalcMode.DialysateFlow)">Dialysate flow</button>
+        </div>
+    </div>
+    @if (Flow)
+    {
+        <div class="grid g3 pw-flow">
+            <label>Dialysate flow<span class="inp" style="--u:6"><input type="number" step="any" @bind="Input.DialysateFlow" @bind:after="Changed" /><span class="u">ml/min</span></span></label>
+            <label>เวลาฟอก<span class="inp" style="--u:5"><input type="number" step="any" @bind="Input.TreatmentHours" @bind:after="Changed" /><span class="u">ชม./Tx</span></span></label>
+            <label>เวลาเตรียมเครื่อง (Priming)<span class="inp" style="--u:6"><input type="number" step="any" @bind="Input.PrimingMinutes" @bind:after="Changed" /><span class="u">นาที/Tx</span></span></label>
+            <label><span>สัดส่วนผสม B <small class="muted">(A = 1 ส่วน)</small></span><span class="inp" style="--u:3"><input type="number" step="any" @bind="Input.MixRatioB" @bind:after="Changed" /><span class="u">ส่วน</span></span></label>
+            <label><span>ส่วนผสมรวม <small class="muted">(A + B + น้ำ)</small></span><span class="inp" style="--u:3"><input type="number" step="any" @bind="Input.MixRatioTotal" @bind:after="Changed" /><span class="u">ส่วน</span></span></label>
+        </div>
+    }
     <table class="tbl rtbl">
         <thead>
-            <tr><th></th><th>ราคา / กล่อง</th><th>ผสมได้ (ครั้ง/กล่อง)</th><th>ลิตร / ครั้ง</th>
-                @if (Result is not null) { <th class="r">Tx / กล่อง</th><th class="r">บาท / Tx</th> }
+            <tr><th></th><th>ราคา / กล่อง</th><th>ผสมแล้ว=แกลลอน</th><th>ลิตร / Tx</th>
+                @if (Result is not null) { <th class="r">บาท / Tx</th> }
             </tr>
         </thead>
         <tbody>
-            @foreach (var (name, p, res) in new[] { ("A", Input.PowderA, Result?.PowderA), ("B", Input.PowderB, Result?.PowderB) })
+            @foreach (var (name, p, res, box) in new[] { ("A", Input.PowderA, Result?.PowderA, CcdsCalculator.BoxLitersA), ("B", Input.PowderB, Result?.PowderB, CcdsCalculator.BoxLitersB) })
             {
+                @* ลิตร / Tx = จากข้อ 2 หรือ Dialysate flow (ตามที่เลือก), ผสมแล้ว=แกลลอน = ลิตรต่อกล่อง (A 100, B 240) ÷ ลิตร / Tx
+                   แก้ได้ทั้งสองช่อง (อีกช่องคำนวณตามสูตรเดิม) — ลบตัวเลขออก = กลับไปคำนวณอัตโนมัติ *@
+                bool own = CcdsCalculator.OwnLitersPerTx(Input, p) is not null;
                 <tr>
                     <td class="m-full m-pw"><b>@name</b></td>
                     <td class="m-3" data-label="ราคา / กล่อง"><input type="number" step="any" @bind="p.CostPerBox" @bind:after="Changed" /></td>
-                    <td class="m-3" data-label="ผสมได้ (ครั้ง)"><input type="number" step="any" @bind="p.MixPerBox" @bind:after="Changed" /></td>
-                    <td class="m-3" data-label="ลิตร / ครั้ง"><input type="number" step="any" @bind="p.MixLiter" @bind:after="Changed" /></td>
+                    <td class="m-3" data-label="ผสมแล้ว=แกลลอน"><input @key="(name, 1, powderEdits)" type="number" step="any" class="@(own ? "" : "auto")" value="@(res is null ? "" : Inv(res.MixPerBox))"
+                        @onchange="e => SetMixed(p, box, e.Value)" title="ลิตรต่อกล่อง ÷ ลิตร / Tx — แก้ได้ (ลบตัวเลข = คำนวณอัตโนมัติ)" /></td>
+                    <td class="m-3" data-label="ลิตร / Tx"><input @key="(name, 2, powderEdits)" type="number" step="any" class="@(own ? "" : "auto")" value="@(res is null ? "" : Inv(res.MixLiter))"
+                        @onchange="e => SetLitersTx(p, e.Value)" title="@(Flow ? "คำนวณจาก Dialysate flow" : "ลิตรที่ใช้ต่อ Treatment จากข้อ 2") — แก้ได้ (ลบตัวเลข = คำนวณอัตโนมัติ)" /></td>
                     @if (res is not null)
                     {
-                        <td class="r muted m-2 m-out" data-label="Tx / กล่อง">@N2(res.TreatmentsPerBox)</td>
-                        <td class="r m-2 m-out" data-label="บาท / Tx"><b>@N2(res.CostPerTreat)</b></td>
+                        <td class="r m-3 m-out" data-label="บาท / Tx"><b>@N2(res.CostPerTreat)</b></td>
                     }
                 </tr>
             }
         </tbody>
     </table>
+    <div class="calc">
+        @if (Result is not null)
+        {
+            @if (Flow)
+            {
+                <text>น้ำยาฟอก @N0(Input.DialysateFlow) ml/min × (@Num(Input.TreatmentHours) ชม. + @Num(Input.PrimingMinutes) นาที) = <b>@N2(Result.DialysateLitersPerTreat)</b> ลิตร/Tx
+                    → ใช้ A <b>@N2(FlowLiters(1))</b> ลิตร/Tx (÷ @Num(Input.MixRatioTotal)) • B <b>@N2(FlowLiters(Input.MixRatioB))</b> ลิตร/Tx (× @Num(Input.MixRatioB) ÷ @Num(Input.MixRatioTotal))</text>
+            }
+            else
+            {
+                <text>ลิตรที่ใช้ต่อ Treatment (จากข้อ 2): A <b>@N2(Result.LiterPerTreatA)</b> • B <b>@N2(Result.LiterPerTreatB)</b> ลิตร/Tx</text>
+            }
+        }
+        @if (CcdsCalculator.OwnLitersPerTx(Input, Input.PowderA) is not null || CcdsCalculator.OwnLitersPerTx(Input, Input.PowderB) is not null)
+        {
+            <div class="calc-own">กรอกเอง: @string.Join(", ", new[] { ("A", Input.PowderA), ("B", Input.PowderB) }.Where(x => CcdsCalculator.OwnLitersPerTx(Input, x.Item2) is not null).Select(x => x.Item1))
+                — ลบตัวเลขในช่องออกเพื่อกลับไปคำนวณอัตโนมัติ</div>
+        }
+        <div class="calc-note">หมายเหตุ: A 1 กล่อง ผสมได้ @N0(CcdsCalculator.BoxLitersA)L, B 1 กล่อง ผสมได้ @N0(CcdsCalculator.BoxLitersB)L</div>
+    </div>
 </div>
 
 <div class="card">
@@ -241,7 +282,7 @@
     <div class="tbl-x mt">
     <table class="tbl xtbl">
         <thead>
-            <tr><th>อุปกรณ์</th><th>kW</th><th>ชม./รอบ</th><th>จำนวน</th><th>รอบ/วัน <small>(ว่าง=อัตโนมัติ)</small></th>
+            <tr><th>อุปกรณ์</th><th>kW</th><th>ทำงานกี่ชม./รอบ</th><th>จำนวนอุปกรณ์</th><th>ทำงานกี่รอบ/วัน <small>(ว่าง=อัตโนมัติ)</small></th>
                 @if (Result is not null) { <th class="r">kWh/เดือน</th> }
             </tr>
         </thead>
@@ -253,9 +294,9 @@
                 <tr>
                     <td class="m-full"><input class="name wide" @bind="e.Name" @bind:after="Changed" aria-label="ชื่ออุปกรณ์" /></td>
                     <td class="m-3" data-label="kW"><input type="number" step="any" @bind="e.Kw" @bind:after="Changed" /></td>
-                    <td class="m-3" data-label="ชม. / รอบ"><input type="number" step="any" @bind="e.Hours" @bind:after="Changed" /></td>
-                    <td class="m-3" data-label="จำนวน"><input type="number" step="any" @bind="e.Qty" @bind:after="Changed" /></td>
-                    <td class="m-2" data-label="รอบ / วัน (ว่าง=อัตโนมัติ)"><input type="number" placeholder="@(er?.RunsPerDay.ToString("0") ?? "อัตโนมัติ")" @bind="e.RunsPerDayOverride" @bind:after="Changed" /></td>
+                    <td class="m-3" data-label="ทำงานกี่ชม./รอบ"><input type="number" step="any" @bind="e.Hours" @bind:after="Changed" /></td>
+                    <td class="m-3" data-label="จำนวนอุปกรณ์"><input type="number" step="any" @bind="e.Qty" @bind:after="Changed" /></td>
+                    <td class="m-2" data-label="ทำงานกี่รอบ/วัน (ว่าง=อัตโนมัติ)"><input type="number" placeholder="@(er?.RunsPerDay.ToString("0") ?? "อัตโนมัติ")" @bind="e.RunsPerDayOverride" @bind:after="Changed" /></td>
                     @if (er is not null) { <td class="r m-2 m-out" data-label="kWh / เดือน">@N1(er.KwhPerMonth)</td> }
                 </tr>
             }
@@ -299,7 +340,9 @@
         ["prices"] = [nameof(CcdsInput.PricePerGallonA), nameof(CcdsInput.PricePerGallonB), nameof(CcdsInput.GallonSalePrice),
                       nameof(CcdsInput.LiterPerGallonA), nameof(CcdsInput.LiterPerGallonB), nameof(CcdsInput.CcdsPricePerGallonA)],
         ["leasing"] = [nameof(CcdsInput.LeasingPrice), nameof(CcdsInput.InterestRatePercent), nameof(CcdsInput.InstallmentYears)],
-        ["powder"] = [nameof(CcdsInput.PowderA), nameof(CcdsInput.PowderB)],
+        ["powder"] = [nameof(CcdsInput.PowderA), nameof(CcdsInput.PowderB), nameof(CcdsInput.PowderMode),
+                      nameof(CcdsInput.DialysateFlow), nameof(CcdsInput.TreatmentHours), nameof(CcdsInput.PrimingMinutes),
+                      nameof(CcdsInput.MixRatioB), nameof(CcdsInput.MixRatioTotal)],
         ["pm"] = [nameof(CcdsInput.PmPerYear), nameof(CcdsInput.WarrantyYears), nameof(CcdsInput.HorizonYears),
                 nameof(CcdsInput.ShowRiskInReport)],
         ["utility"] = [nameof(CcdsInput.WaterRate), nameof(CcdsInput.WaterM3Per1000Liter), nameof(CcdsInput.ElectricRate),
@@ -434,29 +477,61 @@
         await Changed();
     }
 
-    // ---------- ดอกเบี้ย ↔ ปีผ่อน (เลือกอย่างหนึ่ง อีกอย่างเปลี่ยนตามตาราง LeasingRates) ----------
-    private static readonly decimal[] RateOptions = LeasingRates.Table.Select(t => t.RatePercent).ToArray();
+    // ---------- ดอกเบี้ย / ปีผ่อน ----------
+    // ดอกเบี้ย: เลือกจากรายการหรือพิมพ์เองได้อิสระ (ไม่เปลี่ยนปีผ่อน)
+    // ปีผ่อน: ถ้าดอกเบี้ยยังเป็นค่าตามตารางของปีเดิม → เปลี่ยนเป็นดอกเบี้ยตามตารางของปีใหม่; ถ้าเลือก/พิมพ์ดอกเบี้ยเองไว้ → คงไว้
+    private static readonly decimal[] RateOptions = LeasingRates.Table.Select(t => t.RatePercent).Distinct().OrderBy(x => x).ToArray();
     private static readonly decimal[] YearOptions = LeasingRates.Table.Select(t => (decimal)t.Years).ToArray();
 
-    /// <summary>ดอกเบี้ยตรงกับตาราง → ปีผ่อนเปลี่ยนตาม, ค่าที่พิมพ์เอง (ไม่อยู่ในตาราง) → ไม่เปลี่ยนปีผ่อน</summary>
     private Task SetRate(decimal rate)
     {
-        Input.InterestRatePercent = rate;
-        if (LeasingRates.YearsFor(rate) is int y) Input.InstallmentYears = y;
+        Input.InterestRatePercent = Math.Max(0, rate);
         return Changed();
     }
 
-    /// <summary>ปีผ่อนตรงกับตาราง → ดอกเบี้ยเปลี่ยนตาม, ค่าที่พิมพ์เอง → ไม่เปลี่ยนดอกเบี้ย</summary>
     private Task SetYears(decimal years)
     {
         var y = (int)Math.Round(Math.Max(0, years));
+        bool tableRate = LeasingRates.RateFor(Input.InstallmentYears) == Input.InterestRatePercent;
         Input.InstallmentYears = y;
-        if (LeasingRates.RateFor(y) is decimal rate) Input.InterestRatePercent = rate;
+        if (tableRate && LeasingRates.RateFor(y) is decimal rate) Input.InterestRatePercent = rate;
         return Changed();
     }
 
     private Task SetUtility(bool v) { Input.IncludeUtility = v; return Changed(); }
     private Task SetRisk(bool v) { Input.ShowRiskInReport = v; return Changed(); }
+
+    private bool Flow => Input.PowderMode == PowderCalcMode.DialysateFlow;
+    private Task SetPowderMode(PowderCalcMode m)
+    {
+        Input.PowderMode = m;
+        return Changed();
+    }
+
+    /// <summary>ลิตร / Tx ที่คำนวณจาก Dialysate flow (ไม่รวมค่าที่กรอกเอง) — parts = 1 (A) หรือ สัดส่วน B</summary>
+    private decimal FlowLiters(decimal parts) =>
+        Result is null || Input.MixRatioTotal == 0 ? 0 : Result.DialysateLitersPerTreat * parts / Input.MixRatioTotal;
+
+    private static string Inv(decimal v) => Math.Round(v, 2).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static decimal? ParseNum(object? v) =>
+        decimal.TryParse(v?.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var d) && d > 0 ? d : null;
+
+    /// <summary>แก้ ลิตร / Tx เอง (ว่าง / 0 = คำนวณอัตโนมัติ)</summary>
+    private Task SetLitersTx(PowderInput p, object? v) { CcdsCalculator.SetOwnLitersPerTx(Input, p, ParseNum(v)); powderEdits++; return Changed(); }
+
+    // เปลี่ยนทุกครั้งที่แก้ช่อง ลิตร / Tx หรือ ผสมแล้ว=แกลลอน → วาดช่องใหม่ ให้แสดงค่าที่คำนวณแล้วเสมอ
+    // (เช่น ลบตัวเลขออกแล้วค่าอัตโนมัติเท่าเดิม ช่องจะไม่ค้างว่าง)
+    private int powderEdits;
+
+    /// <summary>แก้ ผสมแล้ว=แกลลอน เอง → ลิตร / Tx = ลิตรต่อกล่อง ÷ ค่าที่กรอก (สูตรเดิม)</summary>
+    private Task SetMixed(PowderInput p, decimal boxLiters, object? v)
+    {
+        CcdsCalculator.SetOwnLitersPerTx(Input, p, ParseNum(v) is decimal g ? boxLiters / g : null);
+        powderEdits++;
+        return Changed();
+    }
+    private static string Num(decimal v) => v.ToString("#,0.###");
     private Task SetPowder(ARecipeInput r, bool v) { r.UsePowder = v; return Changed(); }
     private Task Remove(ARecipeInput r) { Input.ARecipes.Remove(r); return Changed(); }
     /// <summary>เพิ่มสูตร A ชื่อถัดไปที่ยังไม่ซ้ำ (A1, A2, … ข้ามชื่อที่มีอยู่แล้ว)</summary>

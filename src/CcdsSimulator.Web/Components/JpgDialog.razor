@@ -21,7 +21,7 @@
             }
             else if (urls is null)
             {
-                <div class="jd-loading"><span class="jd-spin" aria-hidden="true"></span>กำลังสร้างภาพรายงาน 3 หน้า…</div>
+                <div class="jd-loading"><span class="jd-spin" aria-hidden="true"></span>กำลังสร้างภาพรายงาน @(PageNames.Length) หน้า…</div>
             }
             else
             {
@@ -71,13 +71,10 @@
     private string? error, msg;
     private ElementReference closeBtn;
 
-    private static string PageName(int i) => i switch
-    {
-        0 => "สรุปสำหรับผู้บริหาร",
-        1 => "สรุปผลการวิเคราะห์",
-        2 => "รายละเอียดการคำนวณ",
-        _ => "",
-    };
+    /// <summary>ชื่อแต่ละหน้า (ใช้นับจำนวนหน้าในข้อความ "กำลังสร้าง…" ด้วย)</summary>
+    [Parameter] public string[] PageNames { get; set; } = ["สรุปสำหรับผู้บริหาร", "สรุปผลการวิเคราะห์", "รายละเอียดการคำนวณ"];
+
+    private string PageName(int i) => i < PageNames.Length ? PageNames[i] : "";
 
     private int gen;   // รอบการเปิดหน้าต่าง — ผลที่สร้างเสร็จหลังปิด/เปิดใหม่จะถูกทิ้ง
 

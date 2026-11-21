@@ -1,7 +1,8 @@
-@* ช่องตัวเลขที่พิมพ์เองได้ + ปุ่ม ▾ เปิดรายการค่าที่ใช้บ่อย (ใช้กับดอกเบี้ย / ปีผ่อน) *@
+@* ช่องตัวเลขที่พิมพ์เองได้ + รายการค่าที่ใช้บ่อย (ใช้กับดอกเบี้ย / ปีผ่อน)
+   แตะ/คลิกที่ช่อง หรือปุ่ม ▾ = เปิดรายการให้เลือก (ยังพิมพ์ค่าเองได้) *@
 <div class="combo @(open ? "open" : "")" @onfocusout="FocusOut" @onkeydown="Key">
     <span class="inp" style="--u:@Unit.Length">
-        <input @ref="box" type="number" step="@Step" value="@Fmt(Value)" @onchange="Typed" @onfocus="CancelClose" />
+        <input @ref="box" type="number" step="@Step" value="@Fmt(Value)" @onchange="Typed" @onfocus="CancelClose" @onclick="Open" />
         <span class="u">@Unit</span>
     </span>
     <button type="button" class="combo-btn" tabindex="-1" aria-label="เลือกจากรายการ" title="เลือกจากรายการ"
@@ -16,6 +17,7 @@
                 <li>
                     <button type="button" role="option" class="@(o == Value ? "on" : "")" @onmousedown:preventDefault="true" @onclick="() => Pick(o)">
                         @Fmt(o) @Unit
+                        @if (Hint?.Invoke(o) is { Length: > 0 } h) { <small>@h</small> }
                     </button>
                 </li>
             }
@@ -29,6 +31,8 @@
     [Parameter] public string Unit { get; set; } = "";
     [Parameter] public string Format { get; set; } = "0.##";
     [Parameter] public string Step { get; set; } = "any";
+    /// <summary>คำอธิบายเล็ก ๆ ต่อท้ายแต่ละตัวเลือกในรายการ (ไม่บังคับ)</summary>
+    [Parameter] public Func<decimal, string>? Hint { get; set; }
     /// <summary>เรียกเมื่อเลือกจากรายการหรือพิมพ์ค่าใหม่</summary>
     [Parameter] public EventCallback<decimal> OnChange { get; set; }
 
@@ -45,6 +49,8 @@
         if (open) await box.FocusAsync();   // ให้คลิกที่อื่นแล้วรายการปิดเอง
     }
 
+    private void Open() { closing?.Cancel(); open = true; }
+
     private async Task Pick(decimal v)
     {
         open = false;
@@ -54,12 +60,15 @@
     private async Task Typed(ChangeEventArgs e)
     {
         if (decimal.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Number, Inv, out var v))
+        {
+            open = false;
             await OnChange.InvokeAsync(v);
+        }
     }
 
     private void Key(KeyboardEventArgs e)
     {
-        if (e.Key == "Escape") open = false;
+        if (e.Key is "Escape" or "Enter" or "Tab") open = false;
         if (e.Key == "ArrowDown" && e.AltKey) open = true;
     }
 

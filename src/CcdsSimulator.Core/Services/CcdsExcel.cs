@@ -11,6 +11,8 @@ namespace CcdsSimulator.Services;
 public static class CcdsExcel
 {
     public const string Powder = "ผง", Gallon = "แกลลอน", Yes = "คิด", No = "ไม่คิด";
+    /// <summary>ค่าในช่อง "คิดราคา/Tx จาก" (ข้อความอื่น = คิดจากลิตร)</summary>
+    public const string ModeLiters = "ลิตร", ModeFlow = "Dialysate flow";
 
     // ---------- สไตล์ ----------
     private static readonly Style Title = new(Bold: true, Size: 14, Underline: true, Color: "1E3A5F");
@@ -188,20 +190,53 @@ public static class CcdsExcel
 
         // --- Powder ---
         y += 2;
-        string[] ph = { "Powder", "Cost Per Box", "Treat / Box", "Mix. Liter", "Liter / Box", "No. Treatment / Box", "Cost / Treat" };
+        bool flow = input.PowderMode == PowderCalcMode.DialysateFlow;
+        string[] ph = { "Powder", "Cost Per Box", "ผสมแล้ว=แกลลอน", "ลิตร / Tx", "Liter / Box", "No. Treatment / Box", "Cost / Treat" };
         for (int c = 0; c < ph.Length; c++) s.Set(y, M + c, ph[c], Hd);
+        string isFlow = $"PMode=\"{ModeFlow}\"";
         foreach (var (p, res, key) in new[] { (input.PowderA, r.PowderA, "A"), (input.PowderB, r.PowderB, "B") })
         {
             y++;
             s.Set(y, M, key, TxtC);
             s.Set(y, M + 1, p.CostPerBox, In2); Name("CostBox_" + key, y, M + 1);
-            s.Set(y, M + 2, p.MixPerBox, In0);
-            s.Set(y, M + 3, p.MixLiter, In2);
-            s.Set(y, M + 4, res.LiterPerBox, F2, $"{R(y, M + 2)}*{R(y, M + 3)}"); Name("LiterBox_" + key, y, M + 4);
-            s.Set(y, M + 5, res.TreatmentsPerBox, F2, $"IF(LiterTx_{key}=0,0,{R(y, M + 4)}/LiterTx_{key})");
+            // ลิตร/กล่อง คงที่ (A 100, B 240) — ผสมแล้ว=แกลลอน และ ลิตร / Tx เป็นสูตร (ลิตร / Tx จากข้อ 2 หรือ Dialysate flow)
+            s.Set(y, M + 2, res.MixPerBox, F2, $"IF(PLiterTx_{key}=0,0,{R(y, M + 4)}/PLiterTx_{key})");
+            s.Set(y, M + 3, res.MixLiter, F2, $"PLiterTx_{key}");
+            s.Set(y, M + 4, res.LiterPerBox, F2); Name("LiterBox_" + key, y, M + 4);
+            s.Set(y, M + 5, res.TreatmentsPerBox, F2, $"IF(PLiterTx_{key}=0,0,{R(y, M + 4)}/PLiterTx_{key})");
             s.Set(y, M + 6, res.CostPerTreat, F2, $"IF({R(y, M + 5)}=0,0,{R(y, M + 1)}/{R(y, M + 5)})");
             Name("PowderTx_" + key, y, M + 6);
         }
+        s.Set(++y, M, $"หมายเหตุ: A 1 กล่อง ผสมได้ {CcdsCalculator.BoxLitersA:0}L, B 1 กล่อง ผสมได้ {CcdsCalculator.BoxLitersB:0}L", Note);
+
+        // --- ค่าที่ใช้คิดผง: ลิตร / Treatment (จากแกลลอน หรือจาก Dialysate flow) ---
+        y += 2;
+        s.Set(y, M, "ค่าที่ใช้คิดผง", Hd); s.Set(y, M + 1, "ค่า", Hd); s.Set(y, M + 2, "หน่วย", Hd);
+        void Param(string label, decimal? input, decimal value, string? formula, string unit, string name)
+        {
+            y++;
+            s.Set(y, M, label, TxtB);
+            if (input is decimal v) s.Set(y, M + 1, v, In2); else s.Set(y, M + 1, value, F2, formula);
+            s.Set(y, M + 2, unit, TxtC);
+            Name(name, y, M + 1);
+        }
+        y++;
+        s.Set(y, M, "คิดราคา/Tx จาก", TxtB);
+        s.Set(y, M + 1, flow ? ModeFlow : ModeLiters, InTxtC);
+        s.Set(y, M + 2, "", TxtC);
+        s.Set(y, M + 3, $"พิมพ์ \"{ModeLiters}\" (ใช้ลิตร / Treatment จากแกลลอน) หรือ \"{ModeFlow}\"", Note);
+        Name("PMode", y, M + 1);
+        Param("Dialysate flow", input.DialysateFlow, 0, null, "ml / min", "Qd");
+        Param("เวลาฟอก", input.TreatmentHours, 0, null, "ชม. / Tx", "TxHours");
+        Param("เวลาเตรียมเครื่อง (Priming)", input.PrimingMinutes, 0, null, "นาที / Tx", "PrimeMin");
+        Param("สัดส่วนผสม B (A = 1 ส่วน)", input.MixRatioB, 0, null, "ส่วน", "RatioB");
+        Param("ส่วนผสมรวม (A + B + น้ำ)", input.MixRatioTotal, 0, null, "ส่วน", "RatioTotal");
+        Param("น้ำยาฟอก / Treatment", null, r.DialysateLitersPerTreat, "Qd*(TxHours*60+PrimeMin)/1000", "ลิตร", "DialL");
+        // กรอกเองในโปรแกรม (ข้อ 5) → เป็นช่องกรอกสีฟ้า; ไม่กรอก → สูตรอัตโนมัติ
+        Param("ลิตร / Tx ที่ใช้คิดผง A" + (CcdsCalculator.OwnLitersPerTx(input, input.PowderA) is null ? "" : " (กรอกเอง)"), CcdsCalculator.OwnLitersPerTx(input, input.PowderA), r.PowderLiterPerTreatA,
+            $"IF({isFlow},IF(RatioTotal=0,0,DialL/RatioTotal),LiterTx_A)", "ลิตร", "PLiterTx_A");
+        Param("ลิตร / Tx ที่ใช้คิดผง B" + (CcdsCalculator.OwnLitersPerTx(input, input.PowderB) is null ? "" : " (กรอกเอง)"), CcdsCalculator.OwnLitersPerTx(input, input.PowderB), r.PowderLiterPerTreatB,
+            $"IF({isFlow},IF(RatioTotal=0,0,DialL*RatioB/RatioTotal),LiterTx_B)", "ลิตร", "PLiterTx_B");
 
         // --- การใช้น้ำยาเมื่อใช้ CCDS ---
         y += 2;
@@ -222,7 +257,10 @@ public static class CcdsExcel
             // ค่าผง = ลิตรที่ผสม ÷ ลิตรต่อกล่อง × ราคากล่อง; ลิตรที่ผสม = Treatment × แกลลอน A รวม × ลิตร/แกลลอน ÷ Treatment/เดือน
             // (ถ้า Treatment/เดือน = 0 ใช้ แกลลอนของสูตร × ลิตร/แกลลอน) — ตรงกับ CcdsCalculator
             s.Set(y, M + 5, cr.CostPerMonth, F0, $"IF({isP},IF(LiterBox_A=0,0,{R(y, M + 6)}/LiterBox_A*CostBox_A),{R(y, M + 3)}*CcdsPriceA)");
-            s.Set(y, M + 6, cr.MixedLiters, F0, $"IF({isP},IF(TxMonth>0,{R(y, M + 2)}*GL_A*LpG_A/TxMonth,{R(src, 2)}*LpG_A),0)");
+            // ลิตรที่ผสม: Dialysate flow / ลิตร/Tx กรอกเอง → Treatment × ลิตร/Tx (เมื่อ Treatment/เดือน > 0) — ตรงกับ CcdsCalculator
+            string useTxA = CcdsCalculator.OwnLitersPerTx(input, input.PowderA) is not null ? "TxMonth>0" : $"AND({isFlow},TxMonth>0)";
+            s.Set(y, M + 6, cr.MixedLiters, F0,
+                $"IF({isP},IF({useTxA},{R(y, M + 2)}*PLiterTx_A,IF(TxMonth>0,{R(y, M + 2)}*GL_A*LpG_A/TxMonth,{R(src, 2)}*LpG_A)),0)");
         }
         int uAEnd = y;
         y++;
@@ -233,7 +271,8 @@ public static class CcdsExcel
         s.Set(y, M + 3, 0m, F0);
         s.Set(y, M + 4, crB.CostPerTreat, F2, "PowderTx_B");
         s.Set(y, M + 5, crB.CostPerMonth, F0, $"IF(LiterBox_B=0,0,{R(y, M + 6)}/LiterBox_B*CostBox_B)");
-        s.Set(y, M + 6, crB.MixedLiters, F0, "GL_B*LpG_B"); Name("MixLit_B", y, M + 6);
+        string useTxB = CcdsCalculator.OwnLitersPerTx(input, input.PowderB) is not null ? "TxMonth>0" : $"AND({isFlow},TxMonth>0)";
+        s.Set(y, M + 6, crB.MixedLiters, F0, $"IF({useTxB},TxMonth*PLiterTx_B,GL_B*LpG_B)"); Name("MixLit_B", y, M + 6);
         int uEnd = y;
         string rangeKind = $"{Sheet.Abs(u1, M + 1)}:{Sheet.Abs(uEnd, M + 1)}";
         string rangeCost = $"{Sheet.Abs(u1, M + 5)}:{Sheet.Abs(uEnd, M + 5)}";
@@ -277,7 +316,7 @@ public static class CcdsExcel
 
         // --- Equipment ---
         y = rTankB + 2;
-        string[] eh = { "Equipment", "KW", "Time (Hr)", "จำนวน", "ครั้ง / วัน", "KW / Day", "KW / Month" };
+        string[] eh = { "Equipment", "KW", "ทำงานกี่ชม./รอบ", "จำนวนอุปกรณ์", "ทำงานกี่รอบ/วัน", "KW / Day", "KW / Month" };
         for (int c = 0; c < eh.Length; c++) s.Set(y, M + c, eh[c], Hd);
         int e1 = y + 1;
         for (int k = 0; k < input.Equipment.Count; k++)
