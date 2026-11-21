@@ -103,14 +103,14 @@ else
             <div class="card">
                 <h3>ผลการคำนวณต่อ 1 รอบ</h3>
                 <table class="tbl compact dc-t">
-                    <thead><tr><th>รายการ</th><th class="r">ปริมาณ (ลิตร)</th><th class="dc-f">สูตรที่ใช้</th></tr></thead>
+                    <thead><tr><th>รายการ</th><th class="r">ปริมาณ (ลิตร)</th></tr></thead>
                     <tbody>
-                        <tr><td>A concentrate</td><td class="r"><b>@N2(r.LitersA)</b></td><td class="muted dc-f">Dialysate × A ÷ รวม</td></tr>
-                        <tr><td>B concentrate</td><td class="r"><b>@N2(r.LitersB)</b></td><td class="muted dc-f">Dialysate × B ÷ รวม</td></tr>
-                        <tr><td>RO water</td><td class="r"><b>@N2(r.LitersRo)</b></td><td class="muted dc-f">Dialysate × RO ÷ รวม</td></tr>
+                        <tr><td>A concentrate</td><td class="r"><b>@N2(r.LitersA)</b></td></tr>
+                        <tr><td>B concentrate</td><td class="r"><b>@N2(r.LitersB)</b></td></tr>
+                        <tr><td>RO water</td><td class="r"><b>@N2(r.LitersRo)</b></td></tr>
                     </tbody>
                     <tfoot>
-                        <tr><td>รวมทั้งหมด (ตรวจสอบ)</td><td class="r">@N2(r.SumCheck)</td><td class="dc-f"></td></tr>
+                        <tr><td>รวมทั้งหมด (ตรวจสอบ)</td><td class="r">@N2(r.SumCheck)</td></tr>
                     </tfoot>
                 </table>
             </div>
@@ -128,7 +128,7 @@ else
             </div>
 
             <div class="card">
-                <h3>สรุปการใช้ทั้งเดือน <small class="muted">(@N0(r.CasesPerMonth) รอบ/เดือน)</small></h3>
+                <h3>สรุปปริมาณการใช้น้ำยาทั้งเดือน <small class="muted">(@N0(r.CasesPerMonth) รอบ/เดือน)</small></h3>
                 <div class="tbl-x">
                     <table class="tbl compact dc-t">
                         <thead><tr><th>รายการ</th><th class="r">ต่อ 1 รอบ</th><th class="r">ต่อวัน</th><th class="r">ต่อเดือน</th><th>หน่วย</th></tr></thead>
@@ -178,6 +178,10 @@ else
     private async Task Changed()
     {
         if (input is null) return;
+        // ตัดค่าให้อยู่ในช่วงที่ใช้ได้ทันที (ไม่ติดลบ, ไม่ใหญ่เกิน) ให้ช่องแสดงค่าเดียวกับที่ใช้คำนวณ — แบบเดียวกับหน้าสถานที่
+        var clean = DialysateCalculator.Sanitized(input);
+        foreach (var p in typeof(DialysateCalcInput).GetProperties()) p.SetValue(input, p.GetValue(clean));
+        monthEdits++;
         RecordHistory();
         await Store.SaveDialysateAsync(input);
         saved = DateTime.Now;

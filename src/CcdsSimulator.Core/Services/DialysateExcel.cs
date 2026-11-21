@@ -83,7 +83,7 @@ public static class DialysateExcel
         s.Merge(31, 1, 31, 7);
 
         // ---------- 4) หลายรอบ ----------
-        Section(s, 33, "4  สรุปการใช้ทั้งเดือน");
+        Section(s, 33, "4  สรุปปริมาณการใช้น้ำยาทั้งเดือน");
         Input(s, 34, "จำนวนรอบ / วัน", i.CasesPerDay, "รอบ", In0);
         Input(s, 35, "จำนวนวันทำการ / เดือน", i.DaysPerMonth, "วัน", In0);
         s.Set(36, 1, "จำนวนรอบรวม / เดือน", Lbl);

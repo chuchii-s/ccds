@@ -1038,10 +1038,8 @@ th.sortable:hover { color: var(--text); }
 .dc-t td.muted { font-size: 13px; }
 .dc-t tr.dc-cost td { background: var(--primary-soft); }
 .dc-t tfoot td.r, .dc-t td.r { font-variant-numeric: tabular-nums; }
-.dc-notes h2 { font-size: 15px; }
 .dc-notes ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; color: var(--text-2); font-size: 14px; }
 @media (max-width: 640px) {
-    .dc-t .dc-f { display: none; }
 }
 
 /* ---------- หน้าโหลดโปรแกรมครั้งแรก (index.html) ----------
