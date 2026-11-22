@@ -64,7 +64,7 @@ public class DialysateFlowTests
     public void LitersMode_AlsoUsesFixedBoxLiters_AndAutoMixPerBox()
     {
         // โหมดจำนวนลิตร: ลิตร / Tx จากข้อ 2, ผสมแล้ว=แกลลอน = 100 (หรือ 240) ÷ ลิตร / Tx — ช่องผสมได้/ลิตรต่อครั้งเดิมไม่มีผล
-        var i = Presets.Sample1();
+        var i = TestData.L(Presets.Sample1());
         i.PowderA.MixPerBox = 0; i.PowderA.MixLiter = 5.37m;
         i.PowderB.MixPerBox = 0; i.PowderB.MixLiter = 4.14m;
         var r = CcdsCalculator.Calculate(i);
@@ -79,7 +79,7 @@ public class DialysateFlowTests
     [Fact]
     public void Override_LitersPerTx_DrivesMixedGallonsAndCost()
     {
-        var i = Presets.Sample1();
+        var i = TestData.L(Presets.Sample1());
         i.PowderA.LitersPerTx = 5;                        // กรอก ลิตร / Tx เอง
         i.PowderB.LitersPerTx = 240m / 50;                // กรอก ผสมแล้ว=แกลลอน = 50 → ลิตร / Tx = 240 ÷ 50
         var r = CcdsCalculator.Calculate(i);
@@ -111,7 +111,7 @@ public class DialysateFlowTests
     [Fact]
     public void Override_EachModeKeepsItsOwnValue()
     {
-        var i = Presets.Sample1();
+        var i = TestData.L(Presets.Sample1()); i.PrimingMinutes = 0;
         CcdsCalculator.SetOwnLitersPerTx(i, i.PowderA, 5);       // โหมดลิตร: A = 5
         i.PowderMode = PowderCalcMode.DialysateFlow;
         Near(29.17m, CcdsCalculator.Calculate(i).PowderA.MixPerBox);   // โหมด flow ยังอัตโนมัติ
@@ -150,7 +150,7 @@ public class DialysateFlowTests
     [Fact]
     public void LitersMode_Unchanged()
     {
-        var i = Presets.Sample1();
+        var i = TestData.L(Presets.Sample1());
         var r = CcdsCalculator.Calculate(i);
         Assert.Equal(r.LiterPerTreatA, r.PowderLiterPerTreatA);
         Assert.Equal(r.LiterPerTreatB, r.PowderLiterPerTreatB);
@@ -181,16 +181,25 @@ public class DialysateFlowTests
     }
 
     [Fact]
-    public void OldSavedData_DefaultsToLitersMode()
+    public void OldSavedData_WithoutMode_DefaultsToDialysateFlow()
     {
         var json = System.Text.Json.JsonSerializer.Serialize(Presets.Sample1())
-            .Replace("\"PowderMode\":0,", "").Replace("\"DialysateFlow\":500,", "");
+            .Replace("\"PowderMode\":1,", "").Replace("\"DialysateFlow\":500,", "").Replace("\"PrimingMinutes\":30,", "");
         Assert.DoesNotContain("PowderMode", json);
         Assert.DoesNotContain("DialysateFlow", json);
         var i = System.Text.Json.JsonSerializer.Deserialize<CcdsInput>(json)!;
-        Assert.Equal(PowderCalcMode.Liters, i.PowderMode);
+        Assert.Equal(PowderCalcMode.DialysateFlow, i.PowderMode);
         Assert.Equal(500, i.DialysateFlow);
-        Assert.Equal(0, i.PrimingMinutes);
+        Assert.Equal(30, i.PrimingMinutes);
+    }
+
+    [Fact]
+    public void NewSite_DefaultsToDialysateFlow_500_4h_Priming30()
+    {
+        var i = Presets.NewFrom(Presets.FactoryDefaults());
+        Assert.Equal(PowderCalcMode.DialysateFlow, i.PowderMode);
+        Assert.Equal(500, i.DialysateFlow); Assert.Equal(4, i.TreatmentHours); Assert.Equal(30, i.PrimingMinutes);
+        Assert.Equal(1.225m, i.MixRatioB); Assert.Equal(35, i.MixRatioTotal);
     }
 
     [Fact]
@@ -210,7 +219,7 @@ public class ReviewFixTests
     [Fact]
     public void OwnLitersPerTx_WithZeroTreatments_StillChargesPowderFromGallons()
     {
-        var i = Presets.Sample1(); i.TreatmentsPerMonth = 0;
+        var i = TestData.L(Presets.Sample1()); i.TreatmentsPerMonth = 0;
         var auto = CcdsCalculator.Calculate(i).CcdsPowderCost;
         Assert.True(auto > 0);
         i.PowderA.LitersPerTx = 5; i.PowderB.LitersPerTx = 6;

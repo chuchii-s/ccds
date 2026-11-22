@@ -38,7 +38,9 @@ public class ProjectStore(IJSRuntime js, UserSession user)
         }
         catch (JsonException) { }
         // ทั้งก้อนอ่านไม่ได้ → สำรองไว้ก่อน (ครั้งเดียว) ไม่ทับทิ้ง
-        await js.InvokeAsync<bool>("ccds.set", user.Key("ccds.projects.v1.backup"), raw);
+        var bk = user.Key("ccds.projects.v1.backup");
+        if (string.IsNullOrEmpty(await js.InvokeAsync<string?>("ccds.get", bk)))   // มีสำรองอยู่แล้ว → ไม่ทับ
+            await js.InvokeAsync<bool>("ccds.set", bk, raw);
         return new JsonArray();
     }
 
@@ -55,9 +57,53 @@ public class ProjectStore(IJSRuntime js, UserSession user)
         try { return n?.Deserialize<Project>(); } catch (Exception e) when (e is JsonException or InvalidOperationException or FormatException) { return null; }
     }
 
+    // ---------- ปรับข้อมูลเดิมครั้งเดียว: ข้อ 5 ผงผสม คิดราคา/Tx จาก Dialysate flow ----------
+    private string FlowMigrationKey => user.Key("ccds.migrated.flow.v1");
+    private string? flowMigratedFor;   // key ของผู้ใช้ที่ย้ายข้อมูลแล้ว (สลับผู้ใช้ในแท็บเดียวกันต้องตรวจใหม่)
+
+    /// <summary>ทุกสถานที่และค่าตั้งต้นที่บันทึกไว้ → PowderMode = Dialysate flow (ทำครั้งเดียวต่อผู้ใช้)
+    /// ถ้าเดิมคิดจากจำนวนลิตรและ Priming = 0 (ค่าตั้งต้นเก่า) → ตั้ง Priming 30 นาที ตามค่าตั้งต้นใหม่
+    /// หลังจากนี้ผู้ใช้สลับกลับเป็นจำนวนลิตรได้ตามปกติ (ไม่ถูกเปลี่ยนซ้ำ)</summary>
+    private async Task MigrateFlowAsync()
+    {
+        var flagKey = FlowMigrationKey;
+        if (flowMigratedFor == flagKey) return;
+        if (!string.IsNullOrEmpty(await js.InvokeAsync<string?>("ccds.get", flagKey))) { flowMigratedFor = flagKey; return; }
+        if (!await user.EnsureCurrentAsync()) return;
+        var arr = await LoadArrayAsync();
+        bool changed = false;
+        foreach (var n in arr) changed |= ToFlow(n?["Input"] as JsonObject);
+        if (changed) await SaveArrayAsync(arr);
+        var raw = await js.InvokeAsync<string?>("ccds.get", DefaultsKey);
+        if (!string.IsNullOrEmpty(raw))
+        {
+            try
+            {
+                if (JsonNode.Parse(raw) is JsonObject d && ToFlow(d))
+                    await js.InvokeAsync<bool>("ccds.set", DefaultsKey, d.ToJsonString());
+            }
+            catch (JsonException) { }
+        }
+        if (StorageAvailable && await js.InvokeAsync<bool>("ccds.set", flagKey, "1")) flowMigratedFor = flagKey;
+    }
+
+    private static bool ToFlow(JsonObject? inp)
+    {
+        if (inp is null) return false;
+        int mode;
+        try { mode = inp["PowderMode"]?.GetValue<int>() ?? -1; } catch { mode = -1; }
+        if (mode == (int)PowderCalcMode.DialysateFlow) return false;
+        inp["PowderMode"] = (int)PowderCalcMode.DialysateFlow;
+        decimal prime;
+        try { prime = inp["PrimingMinutes"]?.GetValue<decimal>() ?? 0; } catch { prime = 0; }
+        if (prime == 0) inp["PrimingMinutes"] = 30;
+        return true;
+    }
+
     // ---------- API ----------
     public async Task<List<Project>> GetAllAsync()
     {
+        await MigrateFlowAsync();
         var arr = await LoadArrayAsync();
         var list = new List<Project>();
         int bad = 0;
@@ -66,6 +112,7 @@ public class ProjectStore(IJSRuntime js, UserSession user)
             var p = TryRead(n);
             if (p is null || string.IsNullOrEmpty(p.Id)) { bad++; continue; }
             p.Input ??= new CcdsInput();
+            CcdsSimulator.Services.CcdsCalculator.Sanitize(p.Input);   // กันค่า null / นอกช่วงจาก JSON เก่า (หน้าจอ = ค่าที่คำนวณ)
             list.Add(p);
         }
         UnreadableCount = bad;
@@ -81,24 +128,24 @@ public class ProjectStore(IJSRuntime js, UserSession user)
         return p;
     }
 
-    public async Task SaveAsync(Project p)
+    /// <summary>บันทึก — คืน false ถ้าบันทึกไม่สำเร็จ (พื้นที่เต็ม / ไม่อนุญาตให้บันทึก / ผู้ใช้ถูกลบ)</summary>
+    public async Task<bool> SaveAsync(Project p)
     {
         p.UpdatedAt = DateTime.Now;
-        await UpsertAsync(p);
+        return await UpsertAsync(p);
     }
 
     /// <summary>แทนที่รายการที่ Id ตรงกัน (ตำแหน่งเดิม) หรือเพิ่มไว้บนสุด — รายการอื่นไม่ถูกแตะ</summary>
-    private async Task UpsertAsync(Project p)
+    private async Task<bool> UpsertAsync(Project p)
     {
-        if (!await user.EnsureCurrentAsync()) return;   // ผู้ใช้ถูกลบจากแท็บอื่น → ไม่เขียนข้อมูลกำพร้า
+        if (!await user.EnsureCurrentAsync()) return false;   // ผู้ใช้ถูกลบจากแท็บอื่น → ไม่เขียนข้อมูลกำพร้า
         var arr = await LoadArrayAsync();
         var node = JsonSerializer.SerializeToNode(p);
-        for (int k = 0; k < arr.Count; k++)
-        {
-            if (IdOf(arr[k]) == p.Id) { arr[k] = node; await SaveArrayAsync(arr); return; }
-        }
-        arr.Insert(0, node);
+        int at = -1;
+        for (int k = 0; k < arr.Count; k++) if (IdOf(arr[k]) == p.Id) { at = k; break; }
+        if (at >= 0) arr[at] = node; else arr.Insert(0, node);
         await SaveArrayAsync(arr);
+        return StorageAvailable;
     }
 
     public async Task DeleteAsync(string id)
@@ -120,16 +167,17 @@ public class ProjectStore(IJSRuntime js, UserSession user)
     // ---------- ค่าตั้งต้นของผู้ใช้ ----------
     public async Task<CcdsInput> GetDefaultsAsync()
     {
+        await MigrateFlowAsync();
         var raw = await js.InvokeAsync<string?>("ccds.get", DefaultsKey);
         try { if (!string.IsNullOrEmpty(raw) && JsonSerializer.Deserialize<CcdsInput>(raw) is { } d) return d; }
         catch (Exception e) when (e is JsonException or InvalidOperationException) { }
         return CcdsSimulator.Services.Presets.FactoryDefaults();
     }
 
-    public async Task SaveDefaultsAsync(CcdsInput d)
+    public async Task<bool> SaveDefaultsAsync(CcdsInput d)
     {
-        if (!await user.EnsureCurrentAsync()) return;
-        StorageAvailable = await js.InvokeAsync<bool>("ccds.set", DefaultsKey, JsonSerializer.Serialize(d));
+        if (!await user.EnsureCurrentAsync()) return false;
+        return StorageAvailable = await js.InvokeAsync<bool>("ccds.set", DefaultsKey, JsonSerializer.Serialize(d));
     }
 
     // ---------- หน้า "คำนวณน้ำยา" (จำค่าที่กรอกล่าสุดของผู้ใช้) ----------
@@ -144,10 +192,10 @@ public class ProjectStore(IJSRuntime js, UserSession user)
         return CcdsSimulator.Services.DialysateCalculator.Defaults();
     }
 
-    public async Task SaveDialysateAsync(DialysateCalcInput d)
+    public async Task<bool> SaveDialysateAsync(DialysateCalcInput d)
     {
-        if (!await user.EnsureCurrentAsync()) return;
-        StorageAvailable = await js.InvokeAsync<bool>("ccds.set", DialysateKey, JsonSerializer.Serialize(d));
+        if (!await user.EnsureCurrentAsync()) return false;
+        return StorageAvailable = await js.InvokeAsync<bool>("ccds.set", DialysateKey, JsonSerializer.Serialize(d));
     }
 
     // ---------- สำรองข้อมูล ----------

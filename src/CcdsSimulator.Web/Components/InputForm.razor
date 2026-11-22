@@ -161,7 +161,7 @@
     <div class="grid g3">
         <label>ราคาเครื่อง<span class="inp" style="--u:3"><input type="number" step="any" @bind="Input.LeasingPrice" @bind:after="Changed" /><span class="u">บาท</span></span></label>
         <label>ดอกเบี้ย Flat ต่อปี
-            <ComboNumber Value="Input.InterestRatePercent" Options="RateOptions" Unit="%" Format="0.00" OnChange="SetRate" />
+            <ComboNumber Value="Input.InterestRatePercent" Options="RateOptions" Unit="%" Format="0.00##" OnChange="SetRate" />
         </label>
         <label>จำนวนปีผ่อน
             <ComboNumber Value="Input.InstallmentYears" Options="YearOptions" Unit="ปี" Format="0" Step="1" OnChange="SetYears" />
@@ -207,9 +207,9 @@
                 <tr>
                     <td class="m-full m-pw"><b>@name</b></td>
                     <td class="m-3" data-label="ราคา / กล่อง"><input type="number" step="any" @bind="p.CostPerBox" @bind:after="Changed" /></td>
-                    <td class="m-3" data-label="ผสมแล้ว=แกลลอน"><input @key="(name, 1, powderEdits)" type="number" step="any" class="@(own ? "" : "auto")" value="@(res is null ? "" : Inv(res.MixPerBox))"
+                    <td class="m-3" data-label="ผสมแล้ว=แกลลอน"><input @key="(name, 1, powderEdits)" type="number" step="any" class="@(own ? "" : "auto")" value="@(res is not null ? Inv(res.MixPerBox) : OwnTx(p) is decimal o1 && o1 > 0 ? Inv(box / o1) : "")"
                         @onchange="e => SetMixed(p, box, e.Value)" title="ลิตรต่อกล่อง ÷ ลิตร / Tx — แก้ได้ (ลบตัวเลข = คำนวณอัตโนมัติ)" /></td>
-                    <td class="m-3" data-label="ลิตร / Tx"><input @key="(name, 2, powderEdits)" type="number" step="any" class="@(own ? "" : "auto")" value="@(res is null ? "" : Inv(res.MixLiter))"
+                    <td class="m-3" data-label="ลิตร / Tx"><input @key="(name, 2, powderEdits)" type="number" step="any" class="@(own ? "" : "auto")" value="@(res is not null ? Inv(res.MixLiter) : OwnTx(p) is decimal o2 ? Inv(o2) : "")"
                         @onchange="e => SetLitersTx(p, e.Value)" title="@(Flow ? "คำนวณจาก Dialysate flow" : "ลิตรที่ใช้ต่อ Treatment จากข้อ 2") — แก้ได้ (ลบตัวเลข = คำนวณอัตโนมัติ)" /></td>
                     @if (res is not null)
                     {
@@ -218,6 +218,11 @@
                 </tr>
             }
         </tbody>
+        @if (Result is not null)
+        {
+            @* ราคาผงผสมต่อ Treatment = บาท/Tx ของ A + บาท/Tx ของ B *@
+            <tfoot><tr><td colspan="4">ราคาผงผสม / Tx (A + B)</td><td class="r">@N2(Result.PowderA.CostPerTreat + Result.PowderB.CostPerTreat)</td></tr></tfoot>
+        }
     </table>
     <div class="calc">
         @if (Result is not null)
@@ -511,6 +516,9 @@
     /// <summary>ลิตร / Tx ที่คำนวณจาก Dialysate flow (ไม่รวมค่าที่กรอกเอง) — parts = 1 (A) หรือ สัดส่วน B</summary>
     private decimal FlowLiters(decimal parts) =>
         Result is null || Input.MixRatioTotal == 0 ? 0 : Result.DialysateLitersPerTreat * parts / Input.MixRatioTotal;
+
+    /// <summary>ค่า ลิตร / Tx ที่กรอกเองของโหมดที่เลือก (หน้า "ตั้งค่า" ไม่มีผลคำนวณ จึงแสดงค่านี้แทน)</summary>
+    private decimal? OwnTx(PowderInput p) => CcdsCalculator.OwnLitersPerTx(Input, p);
 
     private static string Inv(decimal v) => Math.Round(v, 2).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
 

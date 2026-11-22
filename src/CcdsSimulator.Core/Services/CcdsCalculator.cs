@@ -424,6 +424,8 @@ public static class CcdsCalculator
             r.Name ??= "";
             r.Gallons = C(r.Gallons, Qty);
             r.Treatments = r.Treatments is decimal tx ? C(tx, Qty, 2) : null;
+            // โหมดแกลลอน: Treatment 0 / ติดลบ = อัตโนมัติ (ไม่ให้สูตรที่มีแกลลอนได้ผงฟรี เพราะ Treatment = 0)
+            if (i.UsageMode == UsageInputMode.Gallons && r.Treatments is 0) r.Treatments = null;
             r.LitersPerTreatment = C(r.LitersPerTreatment, 1_000m);
         }
         i.GallonsB = C(i.GallonsB, Qty);

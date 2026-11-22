@@ -2,7 +2,7 @@
    แตะ/คลิกที่ช่อง หรือปุ่ม ▾ = เปิดรายการให้เลือก (ยังพิมพ์ค่าเองได้) *@
 <div class="combo @(open ? "open" : "")" @onfocusout="FocusOut" @onkeydown="Key">
     <span class="inp" style="--u:@Unit.Length">
-        <input @ref="box" type="number" step="@Step" value="@Fmt(Value)" @onchange="Typed" @onfocus="CancelClose" @onclick="Open" />
+        <input @ref="box" @key="edits" type="number" step="@Step" value="@Fmt(Value)" @onchange="Typed" @onfocus="CancelClose" @onclick="Open" />
         <span class="u">@Unit</span>
     </span>
     <button type="button" class="combo-btn" tabindex="-1" aria-label="เลือกจากรายการ" title="เลือกจากรายการ"
@@ -38,6 +38,7 @@
 
     private static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
     private ElementReference box;
+    private int edits;
     private bool open;
     private CancellationTokenSource? closing;
 
@@ -64,6 +65,7 @@
             open = false;
             await OnChange.InvokeAsync(v);
         }
+        edits++;   // วาดช่องใหม่ ให้แสดงค่าที่ใช้จริง (เช่น ปีผ่อนถูกปัด / ตัดช่วง หรือพิมพ์ค่าที่อ่านไม่ได้)
     }
 
     private void Key(KeyboardEventArgs e)

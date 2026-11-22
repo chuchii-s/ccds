@@ -22,6 +22,10 @@ else
             <span class="saved">@(saved is null ? "" : $"บันทึกอัตโนมัติแล้ว {saved:HH:mm:ss}")</span></div>
         <button type="button" class="btn" @onclick="Reset">คืนค่าตั้งต้น</button>
     </div>
+    @if (saveFailed)
+    {
+        <div class="msg warn">บันทึกไม่สำเร็จ — พื้นที่เก็บข้อมูลของเบราว์เซอร์เต็มหรือไม่อนุญาตให้บันทึก (เช่นโหมดไม่ระบุตัวตน)</div>
+    }
     @if (jpgOpen)
     {
         @* สำเนารายงานที่ซ่อนไว้ (ขนาด A4 จริง) ใช้แปลงเป็นภาพ *@
@@ -149,7 +153,7 @@ else
             <div class="card dc-notes">
                 <h3>หมายเหตุ / ข้อควรระวัง</h3>
                 <ol>
-                    <li>อัตราส่วน 1 : 1.225 : 32.775 (รวม 35) เป็นค่าของน้ำยาบางยี่ห้อเท่านั้น ต้องตรวจสอบกับฉลากน้ำยาและ setting ของเครื่องทุกครั้ง</li>
+                    <li>อัตราส่วน @Num(input.RatioA) : @Num(input.RatioB) : @Num(r.RatioRo) (รวม @Num(input.RatioTotal)) เป็นค่าของน้ำยาบางยี่ห้อเท่านั้น ต้องตรวจสอบกับฉลากน้ำยาและ setting ของเครื่องทุกครั้ง</li>
                     <li>ตัวเลขที่ได้เป็นค่าทางทฤษฎี ปริมาณใช้จริงมักสูงกว่าเล็กน้อย จาก dead volume ในสายดูดและน้ำยาที่ค้างก้นแกลลอน</li>
                     <li>หากเครื่องหยุดปั๊ม concentrate (bypass / standby) ระหว่าง priming + recirculation ปริมาณจริงจะต่ำกว่านี้ประมาณ
                         <b>@Pct1(r.BypassShare)</b> (@Num(input.PrimingMinutes + input.RecirculationMinutes)/@Num(r.TotalMinutes) นาที)
@@ -166,7 +170,7 @@ else
     private DialysateCalcInput? input;
     private DateTime? saved;
     private string? message;
-    private bool jpgOpen;
+    private bool jpgOpen, saveFailed;
     private int monthEdits;   // เปลี่ยนทุกครั้งที่แก้ → วาดช่องใหม่ ให้แสดงค่าที่ใช้จริงเสมอ
 
     protected override async Task OnInitializedAsync()
@@ -183,8 +187,8 @@ else
         foreach (var p in typeof(DialysateCalcInput).GetProperties()) p.SetValue(input, p.GetValue(clean));
         monthEdits++;
         RecordHistory();
-        await Store.SaveDialysateAsync(input);
-        saved = DateTime.Now;
+        if (await Store.SaveDialysateAsync(input)) { saved = DateTime.Now; saveFailed = false; }
+        else { saved = null; saveFailed = true; }
     }
 
     /// <summary>แก้รอบ/วัน หรือ วันทำการ → จำนวนรอบ/เดือนกลับไปคำนวณอัตโนมัติ (ค่าที่แก้ล่าสุดเป็นตัวกำหนด)</summary>
@@ -278,8 +282,8 @@ else
             prop.SetValue(input, prop.GetValue(merged));
         }
         monthEdits++;
-        await Store.SaveDialysateAsync(input);
-        saved = DateTime.Now;
+        if (await Store.SaveDialysateAsync(input)) { saved = DateTime.Now; saveFailed = false; }
+        else { saved = null; saveFailed = true; }
     }
 
     private static JsonObject ToNode(DialysateCalcInput i) => JsonSerializer.SerializeToNode(i)!.AsObject();

@@ -390,18 +390,14 @@
                     <tr>@Td("ลิตร / กล่อง", "l")@Td(N0(pa.LiterPerBox))@Td(N0(pb.LiterPerBox))</tr>
                     <tr>@Td("ลิตร / Tx", "l")@Td(N2(r.PowderLiterPerTreatA))@Td(N2(r.PowderLiterPerTreatB))</tr>
                     <tr>@Td("ผสมแล้ว=แกลลอน", "l")@Td(N2(pa.MixPerBox))@Td(N2(pb.MixPerBox))</tr>
-                    <tr class="tot">@Td("ต้นทุน / Treatment", "l")@Td(N2(pa.CostPerTreat))@Td(N2(pb.CostPerTreat))</tr>
+                    <tr>@Td("ต้นทุน / Treatment", "l")@Td(N2(pa.CostPerTreat))@Td(N2(pb.CostPerTreat))</tr>
+                    <tr class="tot">@Td("ราคาผงผสม / Tx (A + B)", "l")<td colspan="2">@N2(pa.CostPerTreat + pb.CostPerTreat)</td></tr>
                 </tbody></table>
                 @if (I.PowderMode == PowderCalcMode.DialysateFlow)
                 {
                     <div class="foot-note">ลิตร / Tx คิดจาก Dialysate flow @N0(I.DialysateFlow) ml/min × (@I.TreatmentHours.ToString("#,0.##") ชม. + Priming @I.PrimingMinutes.ToString("#,0.##") นาที)
                         = @N2(r.DialysateLitersPerTreat) ลิตร • สัดส่วน A 1 : B @I.MixRatioB.ToString("0.###") : รวม @I.MixRatioTotal.ToString("0.###") ส่วน</div>
                 }
-                <div class="foot-note">หมายเหตุ: A 1 กล่อง ผสมได้ @N0(CcdsCalculator.BoxLitersA)L, B 1 กล่อง ผสมได้ @N0(CcdsCalculator.BoxLitersB)L
-                    @if (CcdsCalculator.OwnLitersPerTx(I, I.PowderA) is not null || CcdsCalculator.OwnLitersPerTx(I, I.PowderB) is not null)
-                    {
-                        <text> • ลิตร / Tx ผง @string.Join(", ", new[] { ("A", I.PowderA), ("B", I.PowderB) }.Where(x => CcdsCalculator.OwnLitersPerTx(I, x.Item2) is not null).Select(x => x.Item1)) กรอกเอง</text>
-                    }</div>
                 </div>
         </div>
         <div>@Sec("4. ค่าน้ำยาเมื่อใช้ระบบ CCDS (ผงผสม + สูตรที่ยังใช้แกลลอน)")@CcdsTable(r)</div>

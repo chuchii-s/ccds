@@ -79,7 +79,7 @@
         <div class="note-box dc-rnotes">
             <b>หมายเหตุ / ข้อควรระวัง</b>
             <ol>
-                <li>อัตราส่วน 1 : 1.225 : 32.775 (รวม 35) เป็นค่าของน้ำยาบางยี่ห้อเท่านั้น ต้องตรวจสอบกับฉลากน้ำยาและ setting ของเครื่องทุกครั้ง</li>
+                <li>อัตราส่วน @Num(i.RatioA) : @Num(i.RatioB) : @Num(r.RatioRo) (รวม @Num(i.RatioTotal)) เป็นค่าของน้ำยาบางยี่ห้อเท่านั้น ต้องตรวจสอบกับฉลากน้ำยาและ setting ของเครื่องทุกครั้ง</li>
                 <li>ตัวเลขที่ได้เป็นค่าทางทฤษฎี ปริมาณใช้จริงมักสูงกว่าเล็กน้อย จาก dead volume ในสายดูดและน้ำยาที่ค้างก้นแกลลอน</li>
                 <li>หากเครื่องหยุดปั๊ม concentrate (bypass / standby) ระหว่าง priming + recirculation ปริมาณจริงจะต่ำกว่านี้ประมาณ
                     @Pct1(r.BypassShare) (@Num(i.PrimingMinutes + i.RecirculationMinutes)/@Num(r.TotalMinutes) นาที) หรือ @Pct1(r.BypassShareWithFill) ถ้ารวม fill dialyser ด้วย</li>

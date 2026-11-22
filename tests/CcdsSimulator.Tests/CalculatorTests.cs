@@ -263,8 +263,12 @@ internal static class TestData
     {
         var i = Presets.Sample1();
         i.InterestRatePercent = 4m;
+        i.PowderMode = PowderCalcMode.Liters;   // ชุดทดสอบเดิมคิดผงจากจำนวนลิตร (ค่าตั้งต้นของโปรแกรมเป็น Dialysate flow)
         return i;
     }
+
+    /// <summary>คิดผงจากจำนวนลิตร (โหมดเดิม) — ค่าตั้งต้นของโปรแกรมเป็น Dialysate flow</summary>
+    public static CcdsInput L(CcdsInput i) { i.PowderMode = PowderCalcMode.Liters; return i; }
 }
 
 public class LeasingRateTests

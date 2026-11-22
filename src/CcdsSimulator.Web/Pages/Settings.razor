@@ -42,7 +42,7 @@
                 (เก็บในเบราว์เซอร์นี้เท่านั้น ไม่กระทบสถานที่ที่สร้างไว้แล้ว)</p>
         </div>
         <div class="head-actions">
-            <span class="saved">@(saved is null ? "" : $"บันทึกแล้ว {saved:HH:mm:ss}")</span>
+            <span class="saved">@(saved is null ? "" : $"บันทึกแล้ว {saved:HH:mm:ss}")@(saveFailed ? "บันทึกไม่สำเร็จ — พื้นที่เก็บข้อมูลของเบราว์เซอร์เต็มหรือไม่อนุญาตให้บันทึก (เช่นโหมดไม่ระบุตัวตน)" : "")</span>
             <button class="btn" @onclick="() => confirmReset = true">คืนค่าจากโรงงาน</button>
         </div>
     </div>
@@ -66,13 +66,14 @@
 @code {
     private CcdsInput? defaults;
     private DateTime? saved;
+    private bool saveFailed;
 
     protected override async Task OnInitializedAsync() => defaults = await Store.GetDefaultsAsync();
 
     private async Task Save()
     {
-        await Store.SaveDefaultsAsync(defaults!);
-        saved = DateTime.Now;
+        if (await Store.SaveDefaultsAsync(defaults!)) { saved = DateTime.Now; saveFailed = false; }
+        else { saved = null; saveFailed = true; }
     }
 
     private bool confirmReset;

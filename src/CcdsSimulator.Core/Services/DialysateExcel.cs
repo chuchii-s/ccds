@@ -104,7 +104,7 @@ public static class DialysateExcel
         Section(s, 47, "หมายเหตุ / ข้อควรระวัง");
         string[] notes =
         {
-            "1. อัตราส่วน 1 : 1.225 : 32.775 (รวม 35) เป็นค่าของน้ำยาบางยี่ห้อเท่านั้น ต้องตรวจสอบกับฉลากน้ำยาและ setting ของเครื่องทุกครั้ง",
+            "", // ข้อ 1 เป็นสูตร (อัตราส่วนตามที่กรอก)
             "2. ตัวเลขที่ได้เป็นค่าทางทฤษฎี ปริมาณใช้จริงมักสูงกว่าเล็กน้อย จาก dead volume ในสายดูดและน้ำยาที่ค้างก้นแกลลอน",
             "", // ข้อ 3 เป็นสูตร
             "4. ราคาและขนาดบรรจุในหัวข้อ 3 เป็นตัวอย่างสมมติ กรุณาแก้เป็นค่าจริง",
@@ -112,7 +112,14 @@ public static class DialysateExcel
         for (int k = 0; k < notes.Length; k++)
         {
             int row = 48 + k;
-            if (k == 2)
+            if (k == 0)
+            {
+                static string G(decimal v) => v.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
+                const string tail = " เป็นค่าของน้ำยาบางยี่ห้อเท่านั้น ต้องตรวจสอบกับฉลากน้ำยาและ setting ของเครื่องทุกครั้ง";
+                s.Set(row, 1, $"1. อัตราส่วน {G(i.RatioA)} : {G(i.RatioB)} : {G(r.RatioRo)} (รวม {G(i.RatioTotal)}){tail}", Lbl,
+                    $"\"1. อัตราส่วน \"&B10&\" : \"&B11&\" : \"&B17&\" (รวม \"&B12&\"){tail}\"");
+            }
+            else if (k == 2)
             {
                 string text = $"3. หากเครื่องหยุดปั๊ม concentrate (bypass / standby) ระหว่าง priming + recirculation ปริมาณจริงจะต่ำกว่านี้ประมาณ "
                     + $"{r.BypassShare:0.0%} ({i.PrimingMinutes + i.RecirculationMinutes:0.###}/{r.TotalMinutes:0.###} นาที) หรือ {r.BypassShareWithFill:0.0%} ถ้ารวม fill dialyser ด้วย";

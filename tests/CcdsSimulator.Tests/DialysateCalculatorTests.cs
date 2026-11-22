@@ -85,6 +85,7 @@ public class DialysateExcelTests
     {
         yield return new object[] { "dc_default", DialysateCalculator.Defaults() };
         yield return new object[] { "dc_own", new DialysateCalcInput { CasesPerDay = 78, CasesPerMonth = 2000, FlowRate = 600, TreatmentHours = 4.5m, PackLitersB = 0 } };
+        yield return new object[] { "dc_ratio", new DialysateCalcInput { RatioA = 1, RatioB = 1.72m, RatioTotal = 45 } };
         yield return new object[] { "dc_zero", new DialysateCalcInput { RatioTotal = 0, TreatmentHours = 0, PrimingMinutes = 0, RecirculationMinutes = 0, FillMinutes = 0 } };
     }
 

@@ -180,6 +180,7 @@ public class UserSession(IJSRuntime js)
         var id = Current.Id;
         foreach (var k in LegacyKeys) await js.InvokeVoidAsync("ccds.del", $"{k}.u.{id}");
         await js.InvokeVoidAsync("ccds.del", $"{ProjectStore.DialysateKeyBase}.u.{id}");   // ค่าหน้า "คำนวณน้ำยา"
+        await js.InvokeVoidAsync("ccds.del", $"ccds.migrated.flow.v1.u.{id}");
         var (users, bad) = await LoadAsync();
         users.RemoveAll(u => u.Id == id);
         await SaveAsync(users, bad);

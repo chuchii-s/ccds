@@ -8,7 +8,7 @@ public class SensitivityTests
 {
     private static CcdsInput Sample()
     {
-        var i = Presets.FactoryDefaults();
+        var i = TestData.L(Presets.FactoryDefaults());
         i.TreatmentsPerMonth = 2900; i.Machines = 28; i.LeasingPrice = 2_600_000m;
         i.ARecipes = new() { new() { Name = "A1", Gallons = 3500, UsePowder = true }, new() { Name = "A2", Gallons = 300 } };
         i.GallonsB = 1033;
@@ -121,7 +121,7 @@ public class SensitivityTests
     [Fact]
     public void Overflow_GivesNoBreakEven()
     {
-        var i = Presets.FactoryDefaults();
+        var i = TestData.L(Presets.FactoryDefaults());
         i.TreatmentsPerMonth = 0.01m; i.Equipment.Clear(); i.PmPerYear = 0; i.HorizonYears = 30; i.LiterPerGallonA = 1000;
         i.PowderA = new() { CostPerBox = 1_000_000, MixPerBox = 0.01m, MixLiter = 0.01m };
         i.ARecipes = new() { new() { Name = "A1", Gallons = 1_000_000, UsePowder = true, Treatments = 100_000 } };

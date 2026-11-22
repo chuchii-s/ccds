@@ -17,6 +17,10 @@ else
         <div class="crumb"><a href="">สถานที่</a> / <b>@project.DisplayName</b>
             <span class="saved">@(saved is null ? "" : $"บันทึกอัตโนมัติแล้ว {saved:HH:mm:ss}")</span></div>
     </div>
+    @if (saveFailed)
+    {
+        <div class="msg warn">บันทึกไม่สำเร็จ — พื้นที่เก็บข้อมูลของเบราว์เซอร์เต็มหรือไม่อนุญาตให้บันทึก (เช่นโหมดไม่ระบุตัวตน)</div>
+    }
     @if (jpgOpen)
     {
         @* สำเนารายงานที่ซ่อนไว้ (ขนาด A4 จริง ไม่ย่อตามจอ) ใช้แปลงเป็นภาพ *@
@@ -53,7 +57,7 @@ else
     private bool loading = true;
     private DateTime? saved;
     private string? message;
-    private bool jpgOpen;
+    private bool jpgOpen, saveFailed;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -64,8 +68,8 @@ else
 
     private async Task Save()
     {
-        await Store.SaveAsync(project!);
-        saved = DateTime.Now;
+        if (await Store.SaveAsync(project!)) { saved = DateTime.Now; saveFailed = false; }
+        else { saved = null; saveFailed = true; }
     }
 
     /// <summary>

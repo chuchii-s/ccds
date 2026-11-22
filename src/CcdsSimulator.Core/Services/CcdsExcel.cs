@@ -96,7 +96,7 @@ public static class CcdsExcel
             s.Set(rr, 1, src.Name, InTxtC);
             if (liters)
             {
-                s.Set(rr, 2, i.ARecipes[k].Gallons, F0, $"{R(rr, 4)}*{R(rr, 3)}/LpG_A");
+                s.Set(rr, 2, i.ARecipes[k].Gallons, F0, $"IF(LpG_A=0,0,{R(rr, 4)}*{R(rr, 3)}/LpG_A)");
                 s.Set(rr, 3, src.Treatments ?? 0, In0);
                 s.Set(rr, 4, src.LitersPerTreatment, In2);
             }
@@ -126,7 +126,7 @@ public static class CcdsExcel
         s.Set(rB, 1, "B", TxtC);
         if (liters)
         {
-            s.Set(rB, 2, r.GallonsB, F0, $"{R(rB, 4)}*{R(rB, 3)}/LpG_B");
+            s.Set(rB, 2, r.GallonsB, F0, $"IF(LpG_B=0,0,{R(rB, 4)}*{R(rB, 3)}/LpG_B)");
             s.Set(rB, 3, r.Treatments, F0, "TxMonth");
             s.Set(rB, 4, input.LitersPerTreatmentB, In2);
         }

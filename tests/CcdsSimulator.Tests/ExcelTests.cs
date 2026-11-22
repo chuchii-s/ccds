@@ -42,6 +42,8 @@ public class ExcelTests
         yield return new object[] { "ownt0", ownT0 };
         var flowT0 = Presets.Sample2(); flowT0.TreatmentsPerMonth = 0; flowT0.PowderMode = PowderCalcMode.DialysateFlow;
         yield return new object[] { "flowt0", flowT0 };
+        var lpg0 = Presets.Sample1(); CcdsCalculator.SwitchMode(lpg0, UsageInputMode.LitersPerTreatment); lpg0.LiterPerGallonA = 0; lpg0.LiterPerGallonB = 0;
+        yield return new object[] { "lpg0", lpg0 };
         var h40 = Presets.Sample2(); h40.HorizonYears = 40; h40.InstallmentYears = 0;
         yield return new object[] { "h40", h40 };
     }
@@ -129,7 +131,7 @@ public class ReviewRegressionTests
     [Fact]
     public void Mixing_runs_not_overcounted_on_exact_multiples()
     {
-        var i = Presets.Sample1(); i.DaysPerMonth = 25;           // 12,000 ลิตร B ÷ 25 วัน ÷ ถัง 120 = 4 ครั้งพอดี
+        var i = TestData.L(Presets.Sample1()); i.DaysPerMonth = 25;           // 12,000 ลิตร B ÷ 25 วัน ÷ ถัง 120 = 4 ครั้งพอดี
         var r = CcdsCalculator.Calculate(i);
         Assert.Equal(12000m, r.MixedLitersB);
         Assert.Equal(4m, r.EquipmentRows.First(e => e.Name == "Mixing B").RunsPerDay);
@@ -138,7 +140,7 @@ public class ReviewRegressionTests
     [Fact]
     public void Powder_is_not_free_when_treatments_per_month_is_zero()
     {
-        var i = Presets.Sample1();
+        var i = TestData.L(Presets.Sample1());
         var normal = CcdsCalculator.Calculate(i);
         i.TreatmentsPerMonth = 0;
         var r = CcdsCalculator.Calculate(i);
@@ -151,21 +153,21 @@ public class ReviewRegressionTests
     [InlineData(40, 30)]
     public void Horizon_is_clamped_1_to_30(int horizon, int expectedRows)
     {
-        var i = Presets.Sample1(); i.HorizonYears = horizon;
+        var i = TestData.L(Presets.Sample1()); i.HorizonYears = horizon;
         Assert.Equal(expectedRows, CcdsCalculator.Calculate(i).Years.Count);
     }
 
     [Fact]
     public void Zero_installment_years_still_pays_the_machine()
     {
-        var i = Presets.Sample1(); i.InstallmentYears = 0;
+        var i = TestData.L(Presets.Sample1()); i.InstallmentYears = 0;
         Assert.True(CcdsCalculator.Calculate(i).LeasingPerMonth > 0);
     }
 
     [Fact]
     public void Switch_to_liters_refused_when_treatments_missing_and_data_kept()
     {
-        var i = Presets.Sample1(); i.TreatmentsPerMonth = 0;
+        var i = TestData.L(Presets.Sample1()); i.TreatmentsPerMonth = 0;
         Assert.False(CcdsCalculator.SwitchMode(i, UsageInputMode.LitersPerTreatment));
         Assert.Equal(UsageInputMode.Gallons, i.UsageMode);
         Assert.Equal(450, i.ARecipes[0].Gallons);
@@ -175,11 +177,11 @@ public class ReviewRegressionTests
     [Fact]
     public void Toggling_modes_on_new_site_keeps_treatments_auto()
     {
-        var i = Presets.NewFrom(Presets.FactoryDefaults());
+        var i = Presets.NewFrom(TestData.L(Presets.FactoryDefaults()));
         Assert.True(CcdsCalculator.SwitchMode(i, UsageInputMode.LitersPerTreatment));
         Assert.True(CcdsCalculator.SwitchMode(i, UsageInputMode.Gallons));
         Assert.All(i.ARecipes, r => Assert.Null(r.Treatments));
-        var s = Presets.Sample1();
+        var s = TestData.L(Presets.Sample1());
         CcdsCalculator.SwitchMode(s, UsageInputMode.LitersPerTreatment);
         CcdsCalculator.SwitchMode(s, UsageInputMode.Gallons);
         Assert.All(s.ARecipes, r => Assert.Null(r.Treatments));    // ค่าอัตโนมัติกลับเป็นว่าง
@@ -189,7 +191,7 @@ public class ReviewRegressionTests
     [Fact]
     public void Recipe_named_B_still_counts_its_mixed_liters()
     {
-        var i = Presets.Sample1();
+        var i = TestData.L(Presets.Sample1());
         var before = CcdsCalculator.Calculate(i).MixedLitersA;
         i.ARecipes[1].Name = "B";
         Assert.Equal(before, CcdsCalculator.Calculate(i).MixedLitersA);
@@ -198,7 +200,7 @@ public class ReviewRegressionTests
     [Fact]
     public void Huge_numbers_do_not_throw()
     {
-        var i = Presets.Sample1();
+        var i = TestData.L(Presets.Sample1());
         i.PricePerGallonA = 79228162514264337593543950335m; i.ARecipes[0].Gallons = 10;
         i.MixTankLiterA = 0.0000001m;
         var r = CcdsCalculator.Calculate(i);                      // ต้องไม่ล่ม
@@ -208,7 +210,7 @@ public class ReviewRegressionTests
     [Fact]
     public void Excel_strips_xml_invalid_characters()
     {
-        var i = Presets.Sample1(); i.SiteName = "Site\u000BName & <x>";
+        var i = TestData.L(Presets.Sample1()); i.SiteName = "Site\u000BName & <x>";
         var bytes = CcdsExcel.Build(i);
         using var zip = new System.IO.Compression.ZipArchive(new MemoryStream(bytes));
         using var st = zip.GetEntry("xl/worksheets/sheet1.xml")!.Open();
