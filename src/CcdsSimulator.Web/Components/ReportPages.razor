@@ -212,7 +212,7 @@
 
         <div>
             @Sec($"ผลประหยัดสะสมรายปี ({h} ปี)")
-            <div class="xc"><YearLineChart Result="r" H="190" Phases="true" WarrantyYear="I.WarrantyYears" /></div>
+            <div class="xc"><YearLineChart Result="r" H="190" Phases="true" WarrantyYear="I.WarrantyYears" Paper="true" /></div>
         </div>
 
         <div class="ex-reco @(good ? "good" : "bad")">
@@ -287,7 +287,7 @@
             </div>
             <div>
                 @Sec($"ผลตอบแทนระยะยาว {I.HorizonYears} ปี (Cost Saving สะสม)")
-                <div class="cols" style="grid-template-columns: 9fr 11fr">@LongTermFacts(r)<YearLineChart Result="r" W="440" H="230" /></div>
+                <div class="cols" style="grid-template-columns: 9fr 11fr">@LongTermFacts(r)<YearLineChart Result="r" W="440" H="230" Paper="true" /></div>
                 <div class="yt-wrap" style="margin-top:2mm"><YearTable Result="r" YearsPerTable="10" /><div class="yt-note">* ช่วงผ่อน ค่างวดรวมอยู่ใน Saving ค่าใช้จ่ายแล้ว</div></div>
             </div>
         </text>;

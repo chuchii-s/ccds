@@ -41,11 +41,28 @@
 <div class="ylc">
     <svg viewBox="0 0 @W @H" role="img" aria-label="กราฟเส้น Cost Saving สะสมรายปี">
         <defs>
-            <linearGradient id="@(id)g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#22a35a" stop-opacity=".28" /><stop offset="1" stop-color="#22a35a" stop-opacity=".03" /></linearGradient>
-            <linearGradient id="@(id)r" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#c62828" stop-opacity=".26" /><stop offset="1" stop-color="#c62828" stop-opacity=".03" /></linearGradient>
+            @if (Paper)
+            {
+                @* กระดาษ A4 (พื้นขาวเสมอ): ใช้สีทึบที่ผสมขาวไว้แล้ว — บางเบราว์เซอร์ (Safari / ตอนพิมพ์ / แปลง JPG-PDF)
+                   ไม่สนใจ stop-opacity จนพื้นกราฟเป็นสีทึบเข้ม *@
+                <linearGradient id="@(id)g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="@OnWhite(0x22, 0xa3, 0x5a, .28)" style="stop-opacity:1" /><stop offset="1" stop-color="@OnWhite(0x22, 0xa3, 0x5a, .03)" style="stop-opacity:1" /></linearGradient>
+                <linearGradient id="@(id)r" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="@OnWhite(0xc6, 0x28, 0x28, .26)" style="stop-opacity:1" /><stop offset="1" stop-color="@OnWhite(0xc6, 0x28, 0x28, .03)" style="stop-opacity:1" /></linearGradient>
+            }
+            else
+            {
+                <linearGradient id="@(id)g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#22a35a" stop-opacity=".28" /><stop offset="1" stop-color="#22a35a" stop-opacity=".03" /></linearGradient>
+                <linearGradient id="@(id)r" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#c62828" stop-opacity=".26" /><stop offset="1" stop-color="#c62828" stop-opacity=".03" /></linearGradient>
+            }
+            @* พื้น: ตัดที่ศูนย์พอดี *@
             <clipPath id="@(id)a"><rect x="0" y="0" width="@W" height="@F(y0)" /></clipPath>
             <clipPath id="@(id)b"><rect x="0" y="@F(y0)" width="@W" height="@F(H - y0)" /></clipPath>
+            @* เส้น: ที่อยู่บนศูนย์พอดีนับเป็นสีเขียว (เส้นหนา 2.6 → เลื่อนขอบตัดลงครึ่งหนึ่ง ไม่ให้ครึ่งล่างเป็นสีแดง) *@
+            <clipPath id="@(id)la"><rect x="0" y="0" width="@W" height="@F(y0 + 1.4)" /></clipPath>
+            <clipPath id="@(id)lb"><rect x="0" y="@F(y0 + 1.4)" width="@W" height="@F(H - y0)" /></clipPath>
         </defs>
+
+        @* กระดาษ: พื้นทึบวาดก่อน แล้วแถบช่วงเวลา/เส้นตารางทับด้านบน (ยังมองเห็นผ่านพื้น) *@
+        @if (Paper) { @Area(area, id) }
 
         @* เส้นตาราง + ค่าแกน Y *@
         @for (decimal v = lo; v <= hi + step / 2; v += step)
@@ -83,10 +100,9 @@
         }
 
         @* พื้นและเส้น (เขียวเหนือศูนย์ / แดงใต้ศูนย์) *@
-        <polygon points="@area" fill="url(#@(id)g)" clip-path="url(#@(id)a)" />
-        <polygon points="@area" fill="url(#@(id)r)" clip-path="url(#@(id)b)" />
-        <polyline points="@pts" class="ln pos" clip-path="url(#@(id)a)" />
-        <polyline points="@pts" class="ln neg" clip-path="url(#@(id)b)" />
+        @if (!Paper) { @Area(area, id) }
+        <polyline points="@pts" class="ln pos" clip-path="url(#@(id)la)" />
+        <polyline points="@pts" class="ln neg" clip-path="url(#@(id)lb)" />
 
         @* จุด + ค่า + ปี *@
         @for (int i = 1; i <= h; i++)
@@ -117,7 +133,9 @@
             // วางป้ายไว้ซ้ายของจุด (ด้านที่เส้นลงไปทางศูนย์ จึงไม่ทับตัวเลขปีถัดไป) — ปีแรกวางขวาแทน
             bool left = b > 1 || b == h;
             // ปีแรก: ตัวเลขอยู่เหนือจุด → วางป้ายขวาล่าง (ใต้เส้นที่กำลังขึ้น)
-            double by = left ? Math.Max(T + 9, Y(vals[b]) + 4) : Math.Min(H - B - 4, Y(vals[b]) + 16);
+            // ปีแรกแต่ใต้จุดไม่มีที่ (ค่าใกล้ศูนย์ = จุดอยู่ติดแกนล่าง) → วางเหนือตัวเลขของจุดแทน ไม่ให้ทับกัน
+            double yb = Y(vals[b]);
+            double by = left ? Math.Max(T + 9, yb + 4) : yb + 16 <= H - B - 4 ? yb + 16 : Math.Max(T + 9, yb - 21);
             @Txt(F(left ? X(b) - 9 : X(b) + 7), F(by), "beL", left ? "end" : "start", $"คืนทุนปีที่ {b}")
         }
     </svg>
@@ -135,6 +153,21 @@
     [Parameter] public bool Phases { get; set; }
     /// <summary>ปีที่หมดประกัน — แสดงเส้นประ "หมดประกัน" (null = ไม่แสดง)</summary>
     [Parameter] public int? WarrantyYear { get; set; }
+
+    /// <summary>วาดบนกระดาษรายงาน A4 (พื้นขาว) — ใช้สีพื้นกราฟแบบทึบ ให้พิมพ์ / PDF / JPG ทุกเบราว์เซอร์ได้สีไล่ระดับเหมือนบนจอ</summary>
+    [Parameter] public bool Paper { get; set; }
+
+    private static RenderFragment Area(string area, string id) => @<text>
+        <polygon points="@area" fill="url(#@(id)g)" clip-path="url(#@(id)a)" />
+        <polygon points="@area" fill="url(#@(id)r)" clip-path="url(#@(id)b)" />
+    </text>;
+
+    /// <summary>สี (r,g,b) ความทึบ a วางบนพื้นขาว → สีทึบที่ได้ (#rrggbb)</summary>
+    private static string OnWhite(int r, int g, int b, double a)
+    {
+        int M(int c) => (int)Math.Round(255 - a * (255 - c));
+        return $"#{M(r):x2}{M(g):x2}{M(b):x2}";
+    }
 
     private const double L = 52, R = 18, B = 26;
     private double T => Phases ? 30 : 16;

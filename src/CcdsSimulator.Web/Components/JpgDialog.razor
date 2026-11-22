@@ -96,7 +96,7 @@
                 if (r is null || r.Length == 0) { error = "ไม่พบหน้ารายงาน"; }
                 else { urls = r; sel = Enumerable.Repeat(true, r.Length).ToArray(); }
             }
-            catch (Exception ex) { if (my != gen) return; error = ex.Message; }
+            catch (Exception ex) { if (my != gen) return; error = Brief(ex); }
             StateHasChanged();
         }
         else if (!Visible && wasVisible)
@@ -133,7 +133,7 @@
                 ? $"ดาวน์โหลดหน้า {pages[0] + 1} แล้ว"
                 : $"ดาวน์โหลด {pages.Length} รูปแล้ว — ถ้าได้ไม่ครบ ให้กด \"อนุญาต\" เมื่อเบราว์เซอร์ถามเรื่องดาวน์โหลดหลายไฟล์ หรือกด \"ดาวน์โหลดหน้านี้\" ทีละหน้า";
         }
-        catch (Exception ex) { msg = "ดาวน์โหลดไม่สำเร็จ: " + ex.Message; }
+        catch (Exception ex) { msg = "ดาวน์โหลดไม่สำเร็จ: " + Brief(ex); }
     }
 
     private async Task Share()
@@ -151,8 +151,11 @@
                 _ => "แชร์ไม่สำเร็จ — ลองกดอีกครั้ง หรือกดดาวน์โหลดแทน",
             };
         }
-        catch (Exception ex) { msg = "แชร์ไม่สำเร็จ: " + ex.Message; }
+        catch (Exception ex) { msg = "แชร์ไม่สำเร็จ: " + Brief(ex); }
     }
+
+    /// <summary>ข้อความผิดพลาดบรรทัดแรก (ข้อผิดพลาดจาก JS มี stack trace ต่อท้ายยาว อ่านไม่รู้เรื่อง)</summary>
+    private static string Brief(Exception ex) => (ex.Message ?? "").Split('\n')[0].Trim();
 
     private Task Close() => OnClose.InvokeAsync();
     private Task Key(KeyboardEventArgs e) => e.Key == "Escape" ? Close() : Task.CompletedTask;

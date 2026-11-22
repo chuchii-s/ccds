@@ -16,13 +16,13 @@ else
         <div class="crumb"><a href="">สถานที่</a> / <a href="project/@project.Id">@project.DisplayName</a> / <b>รายงาน</b></div>
         <div class="head-actions">
             <a class="btn" href="project/@project.Id">← แก้ไขข้อมูล</a>
-            <button class="btn" @onclick='() => JS.InvokeVoidAsync("ccds.print")'>พิมพ์</button>
+            <button class="btn" @onclick="Print">พิมพ์</button>
             <button class="btn primary" disabled="@pdfBusy" @onclick="DownloadPdf">@(pdfBusy ? "กำลังสร้าง PDF…" : "ดาวน์โหลด PDF")</button>
         </div>
     </div>
     <div class="print-tip no-print"><b>ดาวน์โหลด PDF</b> ได้ไฟล์ A4 (คอมพิวเตอร์และมือถือ) • <b>พิมพ์</b> ใช้ส่งเครื่องพิมพ์โดยตรง</div>
     @if (!string.IsNullOrEmpty(pdfMsg)) { <div class="msg no-print report-msg">@pdfMsg</div> }
-    @if (pdfRender)
+    @if (pdfRender || printDlg)
     {
         @* สำเนารายงานที่ซ่อนไว้ (ขนาด A4 จริง ไม่ย่อตามจอ) ใช้แปลงเป็น PDF *@
         <div id="pdf-src" class="jpg-src" aria-hidden="true"><ReportPages Result="r" /></div>
@@ -30,6 +30,7 @@ else
     <div class="report-wrap">
         <ReportPages Result="r" />
     </div>
+    <PrintDialog Visible="printDlg" SourceId="pdf-src" FileName="@(FileBase() + ".pdf")" Title="@($"CCDS — {project!.DisplayName}")" OnClose="() => printDlg = false" />
 }
 
 @code {
@@ -46,6 +47,15 @@ else
     // ---------- ดาวน์โหลด PDF (A4 3 หน้าพอดี) ----------
     private bool pdfBusy, pdfRender;
     private string? pdfMsg;
+
+    // พิมพ์: ถ้าหน้าต่างพิมพ์ไม่ขึ้น (แอปจากไอคอนหน้าจอโฮม iOS / เบราว์เซอร์ในแอป) → เปิดทางเลือก PDF
+    private bool printDlg;
+    private async Task Print()
+    {
+        bool shown;
+        try { shown = await JS.InvokeAsync<bool>("ccds.print"); } catch { shown = false; }
+        if (!shown) printDlg = true;
+    }
 
     private async Task DownloadPdf()
     {

@@ -1,0 +1,132 @@
+@* แสดงเมื่อกด "พิมพ์" แล้วหน้าต่างพิมพ์ไม่ขึ้น (เช่น เปิดจากไอคอนหน้าจอโฮมของ iOS / เบราว์เซอร์ในแอป LINE)
+   สร้าง PDF A4 ให้ก่อน แล้วให้ผู้ใช้กด "แชร์ / พิมพ์" (หน้าต่างแชร์ของเครื่องมีปุ่มพิมพ์) หรือ "ดาวน์โหลด PDF"
+   (กดหลัง PDF พร้อมแล้ว = เป็นการกดของผู้ใช้จริง เบราว์เซอร์จึงไม่บล็อกการแชร์) *@
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@if (Visible)
+{
+    <div class="dlg-backdrop" @onclick="Close">
+        <div class="dlg jpg-dlg pr-dlg" role="dialog" aria-modal="true" aria-labelledby="pr-title" @onclick:stopPropagation="true" @onkeydown="Key">
+            <div class="jd-head">
+                <h2 id="pr-title">พิมพ์รายงาน</h2>
+                <button @ref="closeBtn" type="button" class="jd-x" aria-label="ปิด" @onclick="Close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+                </button>
+            </div>
+            <p class="jd-hint">หน้าจอนี้เปิดหน้าต่างพิมพ์ของเบราว์เซอร์ไม่ได้ (เช่น เปิดจากไอคอนบนหน้าจอโฮม) — ใช้ไฟล์ PDF A4 แทน</p>
+
+            @if (error is not null)
+            {
+                <div class="gate-err">สร้าง PDF ไม่สำเร็จ: @error</div>
+            }
+            else if (!ready)
+            {
+                <div class="jd-loading"><span class="jd-spin" aria-hidden="true"></span>กำลังสร้าง PDF…</div>
+            }
+            else
+            {
+                <ol class="pr-steps">
+                    @if (canShare)
+                    {
+                        <li>กด <b>แชร์ / พิมพ์</b> แล้วเลือก <b>พิมพ์ (Print)</b> ในหน้าต่างแชร์ของเครื่อง</li>
+                        <li>ถ้าไม่มีปุ่มพิมพ์ ให้กด <b>ดาวน์โหลด PDF</b> แล้วเปิดไฟล์เพื่อพิมพ์</li>
+                    }
+                    else
+                    {
+                        <li>กด <b>ดาวน์โหลด PDF</b> แล้วเปิดไฟล์ จากนั้นสั่งพิมพ์จากแอปที่เปิดไฟล์</li>
+                    }
+                </ol>
+                <div class="jd-actions">
+                    <span class="jd-sp"></span>
+                    <button type="button" class="btn @(canShare ? "" : "primary")" @onclick="Save">ดาวน์โหลด PDF</button>
+                    @if (canShare)
+                    {
+                        <button type="button" class="btn primary" @onclick="Share">แชร์ / พิมพ์</button>
+                    }
+                </div>
+                @if (!string.IsNullOrEmpty(msg)) { <div class="msg jd-msg">@msg</div> }
+            }
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>เปิด/ปิดหน้าต่าง (ผู้เรียกต้องวาดรายงานซ่อนไว้ใน SourceId ขณะที่เปิดอยู่)</summary>
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public string SourceId { get; set; } = "pdf-src";
+    [Parameter] public string FileName { get; set; } = "CCDS.pdf";
+    [Parameter] public string Title { get; set; } = "CCDS";
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private bool ready, canShare, wasVisible;
+    private string? error, msg;
+    private ElementReference closeBtn;
+    private int gen;   // รอบการเปิดหน้าต่าง — PDF ที่สร้างเสร็จหลังปิด/เปิดใหม่จะถูกทิ้ง
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Visible && !wasVisible)
+        {
+            wasVisible = true;
+            int my = ++gen;
+            ready = false; error = msg = null;
+            StateHasChanged();   // เปิดซ้ำหลังสร้างไม่สำเร็จ: แสดง "กำลังสร้าง PDF…" ทันที ไม่ค้างข้อความผิดพลาดเดิม
+            try { await closeBtn.FocusAsync(); } catch { }
+            try
+            {
+                await Task.Delay(150);   // รอให้รายงานที่ซ่อนไว้วาดเสร็จ
+                if (my != gen) return;
+                // ส่งรอบ my ไปด้วย: งานเก่าที่เสร็จหลังปิด/เปิดใหม่ จะไม่ทับไฟล์ของรอบปัจจุบัน
+                await JS.InvokeVoidAsync("ccds.pdfBegin", my);
+                var res = await JS.InvokeAsync<string>("ccds.reportPdf", SourceId, FileName, Title, "keep", my);
+                if (my != gen || !Visible) return;
+                if (res != "ready") throw new InvalidOperationException("ลองปิดแล้วกดพิมพ์อีกครั้ง");
+                canShare = await JS.InvokeAsync<bool>("ccds.pdfCanShare");
+                ready = true;
+            }
+            catch (Exception ex) { if (my != gen) return; error = Brief(ex); }
+            StateHasChanged();
+        }
+        else if (!Visible && wasVisible)
+        {
+            wasVisible = false;
+            gen++;
+            ready = false; error = msg = null;
+            try { await JS.InvokeVoidAsync("ccds.pdfClear"); } catch { }
+        }
+    }
+
+    private async Task Share()
+    {
+        msg = null;
+        try
+        {
+            var r = await JS.InvokeAsync<string>("ccds.pdfShare", Title);
+            msg = r switch
+            {
+                "shared" or "cancelled" => null,
+                "unsupported" => "เครื่องนี้แชร์ไฟล์ไม่ได้ — กดดาวน์โหลด PDF แทน",
+                _ => "แชร์ไม่สำเร็จ — ลองกดอีกครั้ง หรือกดดาวน์โหลด PDF แทน",
+            };
+        }
+        catch (Exception ex) { msg = "แชร์ไม่สำเร็จ: " + Brief(ex); }
+    }
+
+    private async Task Save()
+    {
+        try { msg = await JS.InvokeAsync<bool>("ccds.pdfSave") ? "ดาวน์โหลด PDF แล้ว — เปิดไฟล์แล้วสั่งพิมพ์ได้เลย" : "ยังไม่มีไฟล์ PDF"; }
+        catch (Exception ex) { msg = "ดาวน์โหลดไม่สำเร็จ: " + Brief(ex); }
+    }
+
+    /// <summary>ข้อความผิดพลาดบรรทัดแรก (ข้อผิดพลาดจาก JS มี stack trace ต่อท้ายยาว อ่านไม่รู้เรื่อง)</summary>
+    private static string Brief(Exception ex) => (ex.Message ?? "").Split('\n')[0].Trim();
+
+    private Task Close() => OnClose.InvokeAsync();
+    private Task Key(KeyboardEventArgs e) => e.Key == "Escape" ? Close() : Task.CompletedTask;
+
+    public async ValueTask DisposeAsync()
+    {
+        try { await JS.InvokeVoidAsync("ccds.pdfClear"); } catch { }
+    }
+}

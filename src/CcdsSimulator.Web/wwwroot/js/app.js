@@ -18,7 +18,22 @@ window.ccds = {
         a.remove();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
     },
-    print: () => window.print(),
+    /**
+     * สั่งพิมพ์ — คืนค่า true ถ้าหน้าต่างพิมพ์ขึ้นจริง
+     * แอปที่เปิดจากไอคอนหน้าจอโฮม (iOS) หรือเบราว์เซอร์ในแอป (เช่น LINE) window.print() จะไม่ทำอะไรเลย
+     * จึงดูจาก event beforeprint: ถ้าไม่เกิดภายในเวลาที่กำหนด = พิมพ์ไม่ได้ → ฝั่ง C# จะเปิดทางเลือก PDF แทน
+     */
+    print: () => new Promise(done => {
+        let settled = false, timer = 0;
+        const finish = ok => { if (settled) return; settled = true; clearTimeout(timer); window.removeEventListener("beforeprint", on); done(ok); };
+        const on = () => finish(true);   // หน้าต่างพิมพ์ขึ้น → จบทันที
+        window.addEventListener("beforeprint", on);
+        const t0 = Date.now();
+        try { window.print(); } catch { }
+        // คอมพิวเตอร์: window.print() รอจนปิดหน้าต่างพิมพ์ (นาน) / มือถือ: beforeprint เกิดเร็ว — รอได้สูงสุด 2 วินาที
+        if (Date.now() - t0 > 2000) finish(true);
+        else timer = setTimeout(() => finish(false), 2000);
+    }),
     /**
      * แปลงรายงาน (ทุกหน้า .page ใน #containerId) เป็น JPG แล้ว
      *  mode "share"    → เปิดหน้าต่างแชร์ของเครื่อง (Line / Email / ...) ถ้าเครื่องรองรับ ไม่งั้นดาวน์โหลดแทน
@@ -65,8 +80,9 @@ window.ccds = {
      *  mode "share" → แชร์ไฟล์ (ถ้าเครื่องรองรับ) ไม่งั้นดาวน์โหลด, "download" → ดาวน์โหลด
      * คืนค่า "shared" | "downloaded" | "cancelled"
      */
-    reportPdf: async (containerId, fileName, title, mode) => {
+    reportPdf: async (containerId, fileName, title, mode, token) => {
         const root = document.getElementById(containerId);
+        if (!root) throw new Error("ไม่พบหน้ารายงาน");
         const pages = [...root.querySelectorAll(".page")];
         await document.fonts.ready;
         ccds.fitReport(root);
@@ -78,6 +94,10 @@ window.ccds = {
             imgs.push({ bytes, w: size[0], h: size[1] });
         }
         const file = new File([ccds.buildPdf(imgs, title)], fileName, { type: "application/pdf" });
+        if (mode === "keep") {
+            if (token !== ccds._pdfGen) return "stale";   // ปิด/เปิดหน้าต่างใหม่ระหว่างสร้าง → ทิ้งไฟล์เก่า
+            ccds._pdf = file; return "ready";
+        }
         if (mode === "share" && navigator.canShare && navigator.canShare({ files: [file] })) {
             try { await navigator.share({ files: [file], title, text: title }); return "shared"; }
             catch (e) { if (e && e.name === "AbortError") return "cancelled"; }
@@ -88,6 +108,29 @@ window.ccds = {
         setTimeout(() => URL.revokeObjectURL(a.href), 4000);
         return "downloaded";
     },
+
+    // ---- ทางเลือกเมื่อพิมพ์จากหน้าเว็บไม่ได้: สร้าง PDF เก็บไว้ (mode "keep") แล้วให้ผู้ใช้กดแชร์/ดาวน์โหลดเอง ----
+    _pdf: null,
+    _pdfGen: 0,
+    pdfBegin: token => { ccds._pdfGen = token; ccds._pdf = null; },
+    pdfCanShare: () => { try { return !!(ccds._pdf && navigator.canShare && navigator.canShare({ files: [ccds._pdf] })); } catch { return false; } },
+    /** แชร์ไฟล์ PDF (หน้าต่างแชร์ของ iOS / Android มีปุ่ม "พิมพ์") — คืน "shared" | "cancelled" | "unsupported" | "error" */
+    pdfShare: async title => {
+        const f = ccds._pdf;
+        if (!f || !ccds.pdfCanShare()) return "unsupported";
+        try { await navigator.share({ files: [f], title }); return "shared"; }
+        catch (e) { return e && e.name === "AbortError" ? "cancelled" : "error"; }
+    },
+    pdfSave: () => {
+        const f = ccds._pdf;
+        if (!f) return false;
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(f); a.download = f.name;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+        return true;
+    },
+    pdfClear: () => { ccds._pdf = null; ccds._pdfGen = -1; },
 
     /** เขียนไฟล์ PDF แบบง่าย: แต่ละหน้า A4 (595.28 × 841.89 pt) มีภาพ JPEG เต็มหน้า 1 ภาพ */
     buildPdf: (imgs, title) => {

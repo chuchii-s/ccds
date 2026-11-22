@@ -1066,3 +1066,9 @@ th.sortable:hover { color: var(--text); }
 :root[data-theme="dark"] .ld-gray { opacity: .22; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ld-gray { opacity: .22; } }
 @media (prefers-reduced-motion: reduce) { .ld-color, .ld-line, .ld-bar span { transition: none; } }
+
+/* ---------- หน้าต่าง "พิมพ์รายงาน" (เมื่อพิมพ์จากหน้าเว็บไม่ได้ → ใช้ PDF) ---------- */
+.dlg.pr-dlg { width: min(460px, 100%); }
+.pr-steps { margin: 0 0 14px; padding-left: 20px; display: grid; gap: 6px; font-size: 14px; line-height: 1.55; }
+/* ตอนพิมพ์: ไม่พิมพ์หน้าต่าง (dialog) และสำเนารายงานที่ซ่อนไว้สำหรับแปลง PDF/JPG */
+@media print { .dlg-backdrop, .jpg-src { display: none !important; } }
