@@ -145,6 +145,6 @@ public class CcdsInput
     public int HorizonYears { get; set; } = 10;
 
     // ---------- รายงาน ----------
-    /// <summary>แสดง "ส่วนเผื่อความเสี่ยง (ถ้าจำนวนคนไข้เปลี่ยน)" ในหน้า Executive Summary</summary>
-    public bool ShowRiskInReport { get; set; } = true;
+    /// <summary>แสดง "ส่วนเผื่อความเสี่ยง (ถ้าจำนวนคนไข้เปลี่ยน)" ในหน้า Executive Summary (ค่าเริ่มต้น = ไม่แสดง)</summary>
+    public bool ShowRiskInReport { get; set; } = false;
 }

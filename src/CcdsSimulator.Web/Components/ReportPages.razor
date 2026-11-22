@@ -292,6 +292,9 @@
             </div>
         </text>;
 
+    /// <summary>ไม่ได้กรอกราคาขายแกลลอนเปล่าคืน / = 0 → รายงานไม่แสดงข้อความเรื่องขายแกลลอน</summary>
+    private static bool Sells(CcdsResult r) => r.Input.GallonSalePrice > 0;
+
     private RenderFragment CompareTable(CcdsResult r)
     {
         var rows = new List<(string, decimal?, decimal?)>
@@ -306,7 +309,7 @@
             rows.Add(("ค่าน้ำ (RO)", null, r.WaterCost));
             rows.Add(("ค่าไฟฟ้า", null, r.ElectricCost));
         }
-        rows.Add(("หัก ขายแกลลอนเปล่าคืน", -r.GlSaleRevenue, -r.CcdsGlSaleRevenue));
+        if (Sells(r)) rows.Add(("หัก ขายแกลลอนเปล่าคืน", -r.GlSaleRevenue, -r.CcdsGlSaleRevenue));
         return @<text>
             <table class="rt">
                 <thead><tr><th class="l">รายการ</th><th>แบบ GL</th><th>แบบ CCDS</th></tr></thead>
@@ -336,7 +339,7 @@
             <div class="stack-l" style="margin-top:3mm">แบบ CCDS <span>&nbsp; @N0(tCc)</span></div>
             <div class="stack">@foreach (var p in cc.Where(p => p.Item2 > 0)) { <div style="width:@W(p.Item2, max);background:@p.Item3"></div> }</div>
             <div class="legend">@foreach (var p in gl.Concat(cc)) { <span><i style="background:@p.Item3"></i>@p.Item1</span> }</div>
-            <div class="legend">* ยอดก่อนหักรายได้ขายแกลลอนเปล่าคืน</div>
+            @if (Sells(r)) { <div class="legend">* ยอดก่อนหักรายได้ขายแกลลอนเปล่าคืน</div> }
         </text>;
     }
 
@@ -375,8 +378,11 @@
             {
                 <div class="foot-note">แกลลอนคำนวณจากปริมาณที่ใช้จริง: ลิตร/Treatment × Treatment ÷ ลิตรต่อแกลลอน (A @N1(I.LiterPerGallonA) L, B @N1(I.LiterPerGallonB) L)</div>
             }
-            <div class="foot-note">ขายแกลลอนเปล่าคืน @N0(r.TotalGallons) GL × @N2(I.GallonSalePrice) = @N0(r.GlSaleRevenue) บาท →
-                <b>ค่าใช้จ่ายสุทธิแบบ GL @N0(r.GlNetMonth) บาท/เดือน</b></div>
+            @if (Sells(r))
+            {
+                <div class="foot-note">ขายแกลลอนเปล่าคืน @N0(r.TotalGallons) GL × @N2(I.GallonSalePrice) = @N0(r.GlSaleRevenue) บาท →
+                    <b>ค่าใช้จ่ายสุทธิแบบ GL @N0(r.GlNetMonth) บาท/เดือน</b></div>
+            }
         </div>
         <div class="cols" style="grid-template-columns: 1fr 1fr">
             <div>@Sec($"2. ค่าเช่าซื้อเครื่อง CCDS ({N0(I.Machines)} เครื่อง)")
@@ -395,7 +401,7 @@
                 </tbody></table>
                 @if (I.PowderMode == PowderCalcMode.DialysateFlow)
                 {
-                    <div class="foot-note">ลิตร / Tx คิดจาก Dialysate flow @N0(I.DialysateFlow) ml/min × (@I.TreatmentHours.ToString("#,0.##") ชม. + Priming @I.PrimingMinutes.ToString("#,0.##") นาที)
+                    <div class="foot-note">ลิตร / Tx คิดจาก Dialysate flow @N0(I.DialysateFlow) ml/min × @(I.PrimingMinutes > 0 ? $"({I.TreatmentHours.ToString("#,0.##")} ชม. + Priming {I.PrimingMinutes.ToString("#,0.##")} นาที)" : $"{I.TreatmentHours.ToString("#,0.##")} ชม.")
                         = @N2(r.DialysateLitersPerTreat) ลิตร • สัดส่วน A 1 : B @I.MixRatioB.ToString("0.###") : รวม @I.MixRatioTotal.ToString("0.###") ส่วน</div>
                 }
                 </div>
@@ -406,7 +412,7 @@
             var ccdsItems = new List<(string, string)> { ($"Leasing {I.InstallmentYears} ปี", N0(r.LeasingPerMonth)),
                 (CcdsCalculator.PowderLabel(r), N0(r.CcdsPowderCost)), (GlNames(r) + " แบบ GL", N0(r.CcdsOtherGlCost)) };
             if (I.IncludeUtility) ccdsItems.Add(("Utility (น้ำ + ไฟ)", N0(r.UtilityCost)));
-            ccdsItems.Add(("หัก ขายแกลลอนคืน", N0(-r.CcdsGlSaleRevenue)));
+            if (Sells(r)) ccdsItems.Add(("หัก ขายแกลลอนคืน", N0(-r.CcdsGlSaleRevenue)));
         }
         <div class="cols" style="grid-template-columns: @(I.IncludeUtility ? "11fr 8fr" : "1fr 1fr")">
             @if (I.IncludeUtility)
